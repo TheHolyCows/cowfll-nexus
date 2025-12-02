@@ -15,6 +15,19 @@
             <div class="status" id="connectionStatus">Disconnected</div>
         </header>
 
+        <!-- Authentication notification banner -->
+        <div id="authNotification" style="display: none; background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 15px; margin: 20px; position: relative;">
+            <button id="closeAuthNotification" style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 20px; cursor: pointer; color: #856404;">&times;</button>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="font-size: 24px;">⚠️</div>
+                <div>
+                    <strong style="color: #856404;">Authentication Required</strong>
+                    <p style="margin: 5px 0 0 0; color: #856404;">You need to authenticate to fetch live data from FLL Nexus.</p>
+                    <a href="/auth" style="display: inline-block; margin-top: 10px; padding: 8px 16px; background: #546e7a; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Authenticate Now</a>
+                </div>
+            </div>
+        </div>
+
         <div class="controls">
             <div class="control-section">
                 <h2>Quick Navigation</h2>
@@ -139,6 +152,23 @@
 
             // Request current event info on connect
             socket.emit('request_event_info');
+        });
+
+        // Authentication check - show notification banner if not authenticated
+        socket.on('auth_status', (data) => {
+            const notification = document.getElementById('authNotification');
+            if (!data.authenticated) {
+                console.log('Not authenticated - showing notification banner');
+                notification.style.display = 'block';
+            } else {
+                console.log('Authenticated - hiding notification banner');
+                notification.style.display = 'none';
+            }
+        });
+
+        // Close notification banner
+        document.getElementById('closeAuthNotification').addEventListener('click', () => {
+            document.getElementById('authNotification').style.display = 'none';
         });
 
         socket.on('disconnect', () => {

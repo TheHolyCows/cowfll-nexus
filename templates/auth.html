@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/controller.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        .auth-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .auth-step {
+            margin-bottom: 30px;
+            padding: 30px;
+            background: #f9f9f9;
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .auth-step h3 {
+            margin-bottom: 15px;
+            color: #546e7a;
+            font-size: 20px;
+        }
+
+        .auth-step p {
+            margin-bottom: 15px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            font-family: 'Roboto', Arial, sans-serif;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #546e7a;
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .message {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .message.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 2px solid #4caf50;
+        }
+
+        .message.error {
+            background: #ffebee;
+            color: #c62828;
+            border: 2px solid #f44336;
+        }
+
+        .message.info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border: 2px solid #2196f3;
+        }
+
+        .step-number {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background: #546e7a;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .back-btn {
+            background: linear-gradient(135deg, #546e7a 0%, #37474f 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(84, 110, 122, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>FLL Nexus Authentication</h1>
+            <div class="status" id="connectionStatus">Disconnected</div>
+        </header>
+
+        <div class="controls">
+            <div class="control-section">
+                <a href="/controller" class="nav-link">
+                    <button class="back-btn">← Back to Controller</button>
+                </a>
+            </div>
+
+            <div class="auth-container">
+                <div id="messageContainer"></div>
+
+                <div class="auth-step">
+                    <h3><span class="step-number">1</span>Request Magic Link</h3>
+                    <p>Enter your FLL Nexus email address to receive a magic link for authentication.</p>
+
+                    <div class="form-group">
+                        <label for="emailInput">Email Address:</label>
+                        <input type="email" id="emailInput" placeholder="your.email@example.com">
+                    </div>
+
+                    <button class="action-btn" id="requestLinkBtn">
+                        📧 Send Magic Link
+                    </button>
+                </div>
+
+                <div class="auth-step">
+                    <h3><span class="step-number">2</span>Complete Authentication</h3>
+                    <p>Check your email for the magic link, then paste the entire link URL below.</p>
+
+                    <div class="form-group">
+                        <label for="magicLinkInput">Magic Link URL:</label>
+                        <textarea id="magicLinkInput" placeholder="Paste the magic link from your email here..."></textarea>
+                    </div>
+
+                    <button class="action-btn" id="completeAuthBtn">
+                        ✓ Complete Authentication
+                    </button>
+                </div>
+
+                <div class="auth-step">
+                    <h3>💡 Tips</h3>
+                    <ul style="margin-left: 20px; color: #666; line-height: 1.8;">
+                        <li>The magic link will be sent to your email inbox</li>
+                        <li>Copy the entire URL from the email (it should start with https://)</li>
+                        <li>The link contains a special code that will authenticate you</li>
+                        <li>Your refresh token will be saved automatically after successful authentication</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        // Connection status
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            document.getElementById('connectionStatus').textContent = 'Connected';
+            document.getElementById('connectionStatus').classList.add('connected');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            document.getElementById('connectionStatus').textContent = 'Disconnected';
+            document.getElementById('connectionStatus').classList.remove('connected');
+        });
+
+        // Show message
+        function showMessage(type, text) {
+            const container = document.getElementById('messageContainer');
+            const message = document.createElement('div');
+            message.className = `message ${type}`;
+            message.textContent = text;
+            container.innerHTML = '';
+            container.appendChild(message);
+
+            // Auto-hide after 10 seconds
+            setTimeout(() => {
+                message.style.opacity = '0';
+                message.style.transition = 'opacity 0.5s';
+                setTimeout(() => message.remove(), 500);
+            }, 10000);
+        }
+
+        // Request magic link
+        document.getElementById('requestLinkBtn').addEventListener('click', () => {
+            const email = document.getElementById('emailInput').value.trim();
+
+            if (!email) {
+                showMessage('error', 'Please enter your email address');
+                return;
+            }
+
+            const btn = document.getElementById('requestLinkBtn');
+            btn.textContent = '⏳ Sending...';
+            btn.disabled = true;
+
+            socket.emit('request_magic_link', { email: email });
+        });
+
+        // Complete authentication
+        document.getElementById('completeAuthBtn').addEventListener('click', () => {
+            const email = document.getElementById('emailInput').value.trim();
+            const magicLink = document.getElementById('magicLinkInput').value.trim();
+
+            if (!email) {
+                showMessage('error', 'Please enter your email address');
+                return;
+            }
+
+            if (!magicLink) {
+                showMessage('error', 'Please paste the magic link from your email');
+                return;
+            }
+
+            const btn = document.getElementById('completeAuthBtn');
+            btn.textContent = '⏳ Authenticating...';
+            btn.disabled = true;
+
+            socket.emit('complete_auth', {
+                email: email,
+                magic_link: magicLink
+            });
+        });
+
+        // Handle magic link sent
+        socket.on('magic_link_sent', (data) => {
+            const btn = document.getElementById('requestLinkBtn');
+            btn.textContent = '📧 Send Magic Link';
+            btn.disabled = false;
+
+            showMessage('success', `Magic link sent to ${data.email}! Check your email inbox.`);
+        });
+
+        // Handle authentication success
+        socket.on('auth_success', (data) => {
+            const btn = document.getElementById('completeAuthBtn');
+            btn.textContent = '✓ Complete Authentication';
+            btn.disabled = false;
+
+            showMessage('success', 'Authentication successful! Your token has been saved. You can now close this page.');
+
+            // Clear inputs
+            document.getElementById('magicLinkInput').value = '';
+        });
+
+        // Handle authentication error
+        socket.on('auth_error', (data) => {
+            const requestBtn = document.getElementById('requestLinkBtn');
+            const completeBtn = document.getElementById('completeAuthBtn');
+
+            requestBtn.textContent = '📧 Send Magic Link';
+            requestBtn.disabled = false;
+
+            completeBtn.textContent = '✓ Complete Authentication';
+            completeBtn.disabled = false;
+
+            showMessage('error', `Error: ${data.message}`);
+        });
+    </script>
+</body>
+</html>

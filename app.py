@@ -16,12 +16,20 @@ connector = FLLNexusConnector()
 
 # Global state
 current_overlay = "matchOverlay"
+is_authenticated = False
 event_data = {
     "region": "socal",
     "event_id": "demo",
     "rankings": [],
     "sponsor_logos": []
 }
+
+def check_authentication():
+    """Check if the connector is authenticated"""
+    global is_authenticated
+    # Check if we have a valid token
+    is_authenticated = connector.id_token is not None
+    return is_authenticated
 
 def load_config():
     """Load configuration from file"""
@@ -88,6 +96,11 @@ def scores():
     """Team scores page"""
     return render_template('scores.html')
 
+@app.route('/auth')
+def auth():
+    """Authentication page"""
+    return render_template('auth.html')
+
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection"""
@@ -95,6 +108,8 @@ def handle_connect():
     emit('connection_established', {'client_id': request.sid})
     # Send current overlay selection
     emit('overlay_selection', {'screen': current_overlay})
+    # Send authentication status
+    emit('auth_status', {'authenticated': check_authentication()})
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -247,6 +262,56 @@ def handle_request_scores():
         print(f"Error fetching scores: {e}")
         emit('error', {'message': str(e)})
 
+@socketio.on('request_magic_link')
+def handle_request_magic_link(data):
+    """Request magic link for authentication"""
+    try:
+        email = data.get('email', '')
+        if not email:
+            emit('auth_error', {'message': 'Email is required'})
+            return
+
+        print(f"Requesting magic link for: {email}")
+        success = connector.request_magic_link(email)
+
+        if success:
+            emit('magic_link_sent', {'email': email})
+        else:
+            emit('auth_error', {'message': 'Failed to send magic link'})
+    except Exception as e:
+        print(f"Error requesting magic link: {e}")
+        emit('auth_error', {'message': str(e)})
+
+@socketio.on('complete_auth')
+def handle_complete_auth(data):
+    """Complete authentication with magic link"""
+    try:
+        email = data.get('email', '')
+        magic_link = data.get('magic_link', '')
+
+        if not email or not magic_link:
+            emit('auth_error', {'message': 'Email and magic link are required'})
+            return
+
+        print(f"Completing authentication for: {email}")
+        success = connector.sign_in_with_magic_link(email, magic_link)
+
+        if success:
+            # Save refresh token
+            connector.save_refresh_token()
+            # Update authentication status
+            global is_authenticated
+            is_authenticated = True
+            print("Authentication successful! Token saved.")
+            emit('auth_success', {'message': 'Authentication successful!'})
+            # Broadcast auth status to all clients
+            emit('auth_status', {'authenticated': True}, broadcast=True)
+        else:
+            emit('auth_error', {'message': 'Authentication failed'})
+    except Exception as e:
+        print(f"Error completing authentication: {e}")
+        emit('auth_error', {'message': str(e)})
+
 if __name__ == '__main__':
     # Load saved configuration
     load_config()
@@ -254,16 +319,19 @@ if __name__ == '__main__':
     # Try to authenticate with saved token
     try:
         connector.load_refresh_token()
+        is_authenticated = True
         print("Successfully authenticated with saved token")
     except Exception as e:
+        is_authenticated = False
         print(f"Warning: Could not load refresh token: {e}")
-        print("You may need to authenticate manually")
+        print("You will need to authenticate via the /auth page")
 
     print("\n" + "="*60)
     print("FLL Nexus Display Server")
     print("="*60)
     print("Controller: http://localhost:5001/controller")
     print("Display:    http://localhost:5001/display")
+    print("Auth:       http://localhost:5001/auth")
     print("="*60 + "\n")
 
     socketio.run(app, debug=True, host='0.0.0.0', port=5001)
