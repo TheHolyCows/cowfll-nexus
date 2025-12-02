@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audience Display</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/display.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <!-- Match Overlay Mode -->
+    <div id="matchOverlay" class="overlay-mode">
+        <div class="upperThird">
+            <div class="fllLogo"></div>
+            <div id="timer">2:30</div>
+            <div class="logo"></div>
+            <div class="eventTitle">Southern California FLL Championship</div>
+        </div>
+
+        <div id="lowerThirdContainer" class="lowerThird">
+            <div id="moTableContainer" class="tables">
+                <!-- Tables will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Rankings Overlay Mode -->
+    <div id="rankingsOverlay" class="overlay-mode" style="display: none;">
+        <div class="rkContainer">
+            <div class="title">Rankings</div>
+            <div id="rankingsContainer" class="lower">
+                <table class="rankingTable">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Team #</th>
+                            <th>Team Name</th>
+                            <th>High Score</th>
+                            <th>Avg Score</th>
+                            <th>Rounds</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rankingsBody">
+                        <!-- Rankings will be dynamically inserted here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sponsors Mode -->
+    <div id="sponsors" class="overlay-mode" style="display: none;">
+        <div id="spLowerThird">
+            <!-- Sponsor logos will be dynamically inserted here -->
+        </div>
+    </div>
+
+    <!-- Blank Mode -->
+    <div id="blank" class="overlay-mode" style="display: none;">
+        <!-- Intentionally blank for chroma key -->
+    </div>
+
+    <script>
+        const socket = io();
+        let currentMode = 'matchOverlay';
+        let rankingsData = [];
+        let lastSeconds = 150;
+        let playbuzzer = false;
+
+        // Audio elements
+        const startbell = new Audio('/static/sounds/start.mp3');
+        const warning = new Audio('/static/sounds/warning.mp3');
+        const stopbuzzer = new Audio('/static/sounds/stop.mp3');
+
+        // Set volume
+        startbell.volume = 0.7;
+        warning.volume = 0.7;
+        stopbuzzer.volume = 0.7;
+
+        // Audio context for web audio API
+        let audioContext = null;
+
+        // Initialize audio context on first user interaction
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                console.log('Audio context initialized');
+            }
+        }
+
+        // Fallback: use Web Audio API beeps if audio files don't exist
+        function playBeep(frequency, duration) {
+            try {
+                if (!audioContext) {
+                    initAudioContext();
+                }
+
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.frequency.value = frequency;
+                oscillator.type = 'sine';
+
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + duration);
+
+                console.log(`Playing beep at ${frequency}Hz`);
+            } catch (e) {
+                console.error('Audio playback error:', e);
+            }
+        }
+
+        // Play audio with fallback
+        function playAudio(audio, fallbackFreq = 440) {
+            console.log('Attempting to play audio:', audio.src);
+
+            audio.play().then(() => {
+                console.log('Audio played successfully');
+            }).catch((error) => {
+                console.log('Audio file playback failed, using beep. Error:', error);
+                playBeep(fallbackFreq, 0.5);
+            });
+        }
+
+        // Enable audio on page load (user interaction)
+        document.addEventListener('click', initAudioContext, { once: true });
+
+        // Connection
+        socket.on('connect', () => {
+            console.log('Display connected to server');
+            socket.emit('request_rankings');
+            socket.emit('request_event_info');
+        });
+
+        // Handle overlay selection
+        socket.on('overlay_selection', (data) => {
+            console.log('Switching to:', data.screen);
+            switchOverlay(data.screen);
+        });
+
+        // Handle rankings data
+        socket.on('rankings_data', (data) => {
+            console.log('Received rankings:', data.rankings);
+            rankingsData = data.rankings;
+            updateRankingsTable();
+
+            // Restart scroll if we're currently showing rankings
+            if (currentMode === 'rankingsOverlay') {
+                setTimeout(() => {
+                    startRankingsScroll();
+                }, 500);
+            }
+        });
+
+        // Handle timer updates
+        socket.on('timer_data', (data) => {
+            const seconds = data.seconds || 0;
+            console.log(`Timer update: ${seconds} seconds (last: ${lastSeconds})`);
+            updateTimer(seconds);
+
+            // Audio cues based on timer
+            // Start bell at 2:29 (when countdown begins from 2:30)
+            if (seconds == 149 && lastSeconds == 150) {
+                console.log('🔔 Playing start bell');
+                playAudio(startbell, 800);
+                document.getElementById('lowerThirdContainer').style.display = 'block';
+            }
+
+            // Warning at 30 seconds
+            if (seconds == 30) {
+                console.log('⚠️ Playing warning sound');
+                playbuzzer = true;
+                playAudio(warning, 600);
+            }
+
+            // Stop buzzer at 0
+            if (seconds == 0 && playbuzzer) {
+                console.log('🚨 Playing stop buzzer');
+                playAudio(stopbuzzer, 400);
+                playbuzzer = false;
+            }
+
+            // Hide lower third at 2:00
+            if (seconds == 120) {
+                console.log('Hiding lower third');
+                document.getElementById('lowerThirdContainer').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('lowerThirdContainer').style.display = 'none';
+                }, 1000);
+            }
+
+            // Show lower third at 2:30
+            if (seconds == 150) {
+                console.log('Showing lower third');
+                document.getElementById('lowerThirdContainer').style.display = 'block';
+                document.getElementById('lowerThirdContainer').style.opacity = '1';
+            }
+
+            lastSeconds = seconds;
+        });
+
+        // Handle event info
+        socket.on('event_info', (data) => {
+            if (data.event_name) {
+                document.querySelector('.eventTitle').textContent = data.event_name;
+            }
+        });
+
+        // Switch between overlay modes
+        function switchOverlay(mode) {
+            // Stop rankings scroll if switching away
+            if (currentMode === 'rankingsOverlay' && mode !== 'rankingsOverlay') {
+                stopRankingsScroll();
+            }
+
+            // Hide all overlays
+            document.querySelectorAll('.overlay-mode').forEach(overlay => {
+                overlay.style.display = 'none';
+            });
+
+            // Show selected overlay with fade in
+            const selectedOverlay = document.getElementById(mode);
+            if (selectedOverlay) {
+                selectedOverlay.style.display = 'block';
+                selectedOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    selectedOverlay.style.transition = 'opacity 1s';
+                    selectedOverlay.style.opacity = '1';
+                }, 10);
+            }
+
+            currentMode = mode;
+
+            // Start auto-scroll for rankings
+            if (mode === 'rankingsOverlay') {
+                setTimeout(() => {
+                    startRankingsScroll();
+                }, 1000); // Wait for fade in
+            }
+        }
+
+        // Update rankings table - show ALL teams
+        function updateRankingsTable() {
+            const tbody = document.getElementById('rankingsBody');
+            tbody.innerHTML = '';
+
+            if (rankingsData.length === 0) return;
+
+            console.log(`Rendering all ${rankingsData.length} teams in rankings table`);
+
+            for (let i = 0; i < rankingsData.length; i++) {
+                const team = rankingsData[i];
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${i + 1}</td>
+                    <td>${team.team_number}</td>
+                    <td class="team-name">${team.name}</td>
+                    <td>${team.high_score}</td>
+                    <td>${team.average_score.toFixed(1)}</td>
+                    <td>${team.total_rounds}</td>
+                `;
+                tbody.appendChild(row);
+            }
+        }
+
+        // Auto-scroll rankings with smooth continuous animation
+        let scrollAnimationId = null;
+        let baseScrollSpeed = 50; // base pixels per second
+
+        function startRankingsScroll() {
+            const container = document.getElementById('rankingsContainer');
+            if (!container) {
+                console.log('Rankings container not found');
+                return;
+            }
+
+            // Stop any existing animation
+            if (scrollAnimationId) {
+                cancelAnimationFrame(scrollAnimationId);
+                scrollAnimationId = null;
+            }
+
+            container.scrollTop = 0;
+            const table = container.querySelector('table');
+            if (!table) {
+                console.log('Rankings table not found');
+                return;
+            }
+
+            const tableHeight = table.scrollHeight;
+            const containerHeight = container.clientHeight;
+            const scrollDistance = tableHeight - containerHeight;
+
+            console.log(`Rankings scroll info: table=${tableHeight}px, container=${containerHeight}px, distance=${scrollDistance}px`);
+
+            if (scrollDistance <= 0) {
+                console.log('No scrolling needed - content fits in container');
+                return; // No need to scroll if content fits
+            }
+
+            // Adjust speed so it takes at least 10 seconds to scroll through
+            const minScrollDuration = 10000; // milliseconds
+            const calculatedSpeed = (scrollDistance / minScrollDuration) * 1000;
+            const scrollSpeed = Math.max(baseScrollSpeed, calculatedSpeed);
+            console.log(`Using scroll speed: ${scrollSpeed} px/s (calculated: ${calculatedSpeed}, base: ${baseScrollSpeed})`);
+
+
+            let lastTime = performance.now();
+            let pauseTimer = 0;
+            const pauseDuration = 3000; // Pause at top and bottom
+            let isPaused = true; // Start paused at top
+            let hasReachedBottom = false;
+
+            console.log('Starting rankings scroll animation');
+
+            function animate(currentTime) {
+                if (!container || currentMode !== 'rankingsOverlay') {
+                    console.log('Stopping scroll - mode changed or container gone');
+                    return; // Stop if container is gone or mode changed
+                }
+
+                const deltaTime = currentTime - lastTime;
+                lastTime = currentTime;
+
+                if (isPaused) {
+                    pauseTimer += deltaTime;
+                    if (pauseTimer >= pauseDuration) {
+                        isPaused = false;
+                        pauseTimer = 0;
+
+                        // If we just finished pausing at bottom, reset to top
+                        if (hasReachedBottom) {
+                            console.log('Resetting scroll to top');
+                            container.scrollTop = 0;
+                            hasReachedBottom = false;
+                            isPaused = true; // Pause at top before scrolling again
+                        }
+                    }
+                } else {
+                    // Smooth scroll
+                    const scrollAmount = (scrollSpeed * deltaTime) / 1000;
+                    container.scrollTop += scrollAmount;
+
+                    // Check if reached bottom
+                    if (container.scrollTop >= scrollDistance - 1) {
+                        console.log(`Reached bottom, pausing. ScrollTop: ${container.scrollTop}/${scrollDistance}`);
+                        container.scrollTop = scrollDistance;
+                        isPaused = true;
+                        pauseTimer = 0;
+                        hasReachedBottom = true;
+                    }
+                }
+
+                scrollAnimationId = requestAnimationFrame(animate);
+            }
+
+            scrollAnimationId = requestAnimationFrame(animate);
+        }
+
+        function stopRankingsScroll() {
+            if (scrollAnimationId) {
+                cancelAnimationFrame(scrollAnimationId);
+                scrollAnimationId = null;
+            }
+        }
+
+        // Update timer display
+        function updateTimer(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            const timeString = `${minutes}:${secs.toString().padStart(2, '0')}`;
+
+            document.getElementById('timer').textContent = timeString;
+
+            // Color coding
+            const timerEl = document.getElementById('timer');
+            if (seconds <= 10) {
+                timerEl.className = 'text-danger';
+            } else if (seconds <= 30) {
+                timerEl.className = 'text-warning';
+            } else {
+                timerEl.className = '';
+            }
+        }
+
+        // Generate table overlays dynamically (for match mode)
+        function generateTableOverlay(tableId, tableName) {
+            return `
+                <div class="table text-center">
+                    <div class="tableName">${tableName}</div>
+                    <div id="${tableId}TeamName" class="teamName">-</div>
+                    <div id="${tableId}TeamNumber" class="teamNumber">Team -</div>
+                </div>
+            `;
+        }
+
+        // Initialize with default tables
+        window.addEventListener('load', () => {
+            const container = document.getElementById('moTableContainer');
+            const tables = ['Table 1', 'Table 2', 'Table 3', 'Table 4'];
+
+            tables.forEach((tableName, index) => {
+                container.innerHTML += generateTableOverlay(`table${index + 1}`, tableName);
+            });
+
+            // Request initial data
+            socket.emit('request_rankings');
+
+            // Load sponsor logos
+            loadSponsorLogos();
+        });
+
+        // Sponsor slideshow
+        let sponsorLogos = [];
+        let currentSponsorIndex = 0;
+        let sponsorInterval = null;
+
+        function loadSponsorLogos() {
+            // List of sponsor logo files
+            sponsorLogos = ['flllogo.svg', 'viasat.svg'];
+
+            // Create sponsor logo elements
+            const container = document.getElementById('spLowerThird');
+            container.innerHTML = '';
+
+            sponsorLogos.forEach((logo, index) => {
+                const logoElement = document.createElement('object');
+                logoElement.type = 'image/svg+xml';
+                logoElement.data = `/static/images/sponsors/${logo}`;
+                logoElement.className = 'spLogo';
+                logoElement.id = `sponsor-${index}`;
+                logoElement.style.display = index === 0 ? 'block' : 'none';
+                container.appendChild(logoElement);
+            });
+        }
+
+        function startSponsorSlideshow() {
+            if (sponsorLogos.length <= 1) return;
+
+            // Show first sponsor
+            currentSponsorIndex = 0;
+            showSponsor(currentSponsorIndex);
+
+            // Rotate sponsors every 5 seconds
+            sponsorInterval = setInterval(() => {
+                currentSponsorIndex = (currentSponsorIndex + 1) % sponsorLogos.length;
+                showSponsor(currentSponsorIndex);
+            }, 5000);
+        }
+
+        function stopSponsorSlideshow() {
+            if (sponsorInterval) {
+                clearInterval(sponsorInterval);
+                sponsorInterval = null;
+            }
+        }
+
+        function showSponsor(index) {
+            // Hide all sponsors
+            sponsorLogos.forEach((logo, i) => {
+                const element = document.getElementById(`sponsor-${i}`);
+                if (element) {
+                    element.style.opacity = '0';
+                    setTimeout(() => {
+                        element.style.display = 'none';
+                    }, 500);
+                }
+            });
+
+            // Show current sponsor with fade
+            setTimeout(() => {
+                const element = document.getElementById(`sponsor-${index}`);
+                if (element) {
+                    element.style.display = 'block';
+                    element.style.opacity = '0';
+                    setTimeout(() => {
+                        element.style.transition = 'opacity 0.5s';
+                        element.style.opacity = '1';
+                    }, 10);
+                }
+            }, 500);
+        }
+
+        // Update switchOverlay to handle sponsor slideshow
+        const originalSwitchOverlay = switchOverlay;
+        switchOverlay = function(mode) {
+            // Stop sponsor slideshow if switching away
+            if (currentMode === 'sponsors' && mode !== 'sponsors') {
+                stopSponsorSlideshow();
+            }
+
+            // Call original function
+            originalSwitchOverlay(mode);
+
+            // Start sponsor slideshow if switching to sponsors
+            if (mode === 'sponsors') {
+                setTimeout(() => {
+                    startSponsorSlideshow();
+                }, 1000);
+            }
+        };
+    </script>
+</body>
+</html>

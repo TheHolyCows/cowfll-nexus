@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            padding: 15px 30px;
+            margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Audio Test</h1>
+    <p>Click the buttons below to test audio playback:</p>
+
+    <button onclick="testAudio('start')">🔔 Test Start Bell</button>
+    <button onclick="testAudio('warning')">⚠️ Test Warning</button>
+    <button onclick="testAudio('stop')">🚨 Test Stop Buzzer</button>
+    <button onclick="testBeep(800)">Test Beep (800Hz)</button>
+
+    <div class="status" id="status">
+        Status: Ready to test
+    </div>
+
+    <script>
+        const audio = {
+            start: new Audio('/static/sounds/start.mp3'),
+            warning: new Audio('/static/sounds/warning.mp3'),
+            stop: new Audio('/static/sounds/stop.mp3')
+        };
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+            console.log(message);
+        }
+
+        function testAudio(type) {
+            updateStatus(`Testing ${type} audio...`);
+            const sound = audio[type];
+
+            sound.play().then(() => {
+                updateStatus(`✅ ${type} audio played successfully`);
+            }).catch((error) => {
+                updateStatus(`❌ ${type} audio failed: ${error.message}`);
+            });
+        }
+
+        function testBeep(frequency) {
+            updateStatus(`Testing beep at ${frequency}Hz...`);
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.frequency.value = frequency;
+                oscillator.type = 'sine';
+
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+
+                updateStatus(`✅ Beep played at ${frequency}Hz`);
+            } catch (e) {
+                updateStatus(`❌ Beep failed: ${e.message}`);
+            }
+        }
+
+        // Preload audio files
+        window.addEventListener('load', () => {
+            Object.keys(audio).forEach(key => {
+                audio[key].load();
+            });
+            updateStatus('Audio files preloaded. Click buttons to test.');
+        });
+    </script>
+</body>
+</html>

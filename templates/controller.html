@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Display Controller</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/controller.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Display Controller</h1>
+            <div class="status" id="connectionStatus">Disconnected</div>
+        </header>
+
+        <div class="controls">
+            <div class="control-section">
+                <h2>Select Display Mode</h2>
+                <p class="description">Choose what to show on the audience display</p>
+
+                <div class="button-grid">
+                    <button class="control-btn match-btn" data-screen="matchOverlay">
+                        <div class="btn-icon">🎮</div>
+                        <div class="btn-title">Game Mode</div>
+                        <div class="btn-desc">Show match timer and team info</div>
+                    </button>
+
+                    <button class="control-btn rankings-btn" data-screen="rankingsOverlay">
+                        <div class="btn-icon">🏆</div>
+                        <div class="btn-title">Rankings</div>
+                        <div class="btn-desc">Display current team rankings</div>
+                    </button>
+
+                    <button class="control-btn sponsors-btn" data-screen="sponsors">
+                        <div class="btn-icon">💼</div>
+                        <div class="btn-title">Sponsors</div>
+                        <div class="btn-desc">Show sponsor slideshow</div>
+                    </button>
+
+                    <button class="control-btn blank-btn" data-screen="blank">
+                        <div class="btn-icon">⬛</div>
+                        <div class="btn-title">Blank Screen</div>
+                        <div class="btn-desc">Hide all overlays</div>
+                    </button>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h2>Current Display</h2>
+                <div class="current-display" id="currentDisplay">
+                    Match Overlay
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h2>Match Timer Control</h2>
+                <div class="timer-display" id="timerDisplay">2:30</div>
+                <div class="timer-controls">
+                    <button class="timer-btn start-btn" id="startTimer">
+                        ▶️ Start Match
+                    </button>
+                    <button class="timer-btn pause-btn" id="pauseTimer">
+                        ⏸️ Pause
+                    </button>
+                    <button class="timer-btn reset-btn" id="resetTimer">
+                        🔄 Reset
+                    </button>
+                </div>
+                <div class="timer-info">
+                    <small>Match Duration: 2 minutes 30 seconds</small>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h2>Event Selection</h2>
+                <div class="event-selector">
+                    <div class="form-group">
+                        <label for="regionSelect">Region:</label>
+                        <input type="text" id="regionSelect" value="socal" placeholder="e.g., socal">
+                    </div>
+                    <div class="form-group">
+                        <label for="eventSelect">Event:</label>
+                        <select id="eventSelect">
+                            <option value="">Loading events...</option>
+                        </select>
+                    </div>
+                    <button class="action-btn" id="loadEvents">
+                        📋 Load Events
+                    </button>
+                    <button class="action-btn" id="setEvent">
+                        ✓ Set Event
+                    </button>
+                </div>
+                <div class="current-event" id="currentEvent">
+                    Current: socal/demo
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h2>Actions</h2>
+                <button class="action-btn" id="refreshRankings">
+                    🔄 Refresh Rankings Data
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentScreen = 'matchOverlay';
+        let timerInterval = null;
+        let currentSeconds = 150; // 2:30
+        let isTimerRunning = false;
+
+        const screenNames = {
+            'matchOverlay': 'Game Mode',
+            'rankingsOverlay': 'Rankings',
+            'sponsors': 'Sponsors',
+            'blank': 'Blank Screen'
+        };
+
+        // Connection status
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            document.getElementById('connectionStatus').textContent = 'Connected';
+            document.getElementById('connectionStatus').classList.add('connected');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            document.getElementById('connectionStatus').textContent = 'Disconnected';
+            document.getElementById('connectionStatus').classList.remove('connected');
+        });
+
+        // Handle overlay selection
+        document.querySelectorAll('.control-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const screen = this.getAttribute('data-screen');
+
+                // Remove active class from all buttons
+                document.querySelectorAll('.control-btn').forEach(b => b.classList.remove('active'));
+
+                // Add active class to clicked button
+                this.classList.add('active');
+
+                // Emit to server
+                socket.emit('set_overlay', { screen: screen });
+
+                // Update current display
+                currentScreen = screen;
+                document.getElementById('currentDisplay').textContent = screenNames[screen] || screen;
+            });
+        });
+
+        // Handle overlay selection update from server
+        socket.on('overlay_selection', (data) => {
+            currentScreen = data.screen;
+            document.getElementById('currentDisplay').textContent = screenNames[data.screen] || data.screen;
+
+            // Update active button
+            document.querySelectorAll('.control-btn').forEach(btn => {
+                if (btn.getAttribute('data-screen') === data.screen) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        });
+
+        // Refresh rankings
+        document.getElementById('refreshRankings').addEventListener('click', () => {
+            socket.emit('request_rankings');
+            const btn = document.getElementById('refreshRankings');
+            btn.textContent = '⏳ Refreshing...';
+            btn.disabled = true;
+
+            setTimeout(() => {
+                btn.textContent = '🔄 Refresh Rankings Data';
+                btn.disabled = false;
+            }, 2000);
+        });
+
+        // Timer functions
+        function updateTimerDisplay() {
+            const minutes = Math.floor(currentSeconds / 60);
+            const secs = currentSeconds % 60;
+            const timeString = `${minutes}:${secs.toString().padStart(2, '0')}`;
+            document.getElementById('timerDisplay').textContent = timeString;
+        }
+
+        function startTimer() {
+            if (isTimerRunning) return;
+
+            isTimerRunning = true;
+            document.getElementById('startTimer').disabled = true;
+            document.getElementById('pauseTimer').disabled = false;
+
+            timerInterval = setInterval(() => {
+                if (currentSeconds > 0) {
+                    currentSeconds--;
+                    updateTimerDisplay();
+                    // Broadcast to displays
+                    socket.emit('timer_update', { seconds: currentSeconds });
+                } else {
+                    stopTimer();
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            isTimerRunning = false;
+            clearInterval(timerInterval);
+            document.getElementById('startTimer').disabled = false;
+            document.getElementById('pauseTimer').disabled = true;
+        }
+
+        function resetTimer() {
+            stopTimer();
+            currentSeconds = 150;
+            updateTimerDisplay();
+            socket.emit('timer_update', { seconds: currentSeconds });
+        }
+
+        // Timer controls
+        document.getElementById('startTimer').addEventListener('click', startTimer);
+        document.getElementById('pauseTimer').addEventListener('click', stopTimer);
+        document.getElementById('resetTimer').addEventListener('click', resetTimer);
+
+        // Event selection
+        let currentRegion = 'socal';
+        let currentEventId = 'demo';
+        let availableEvents = {};
+
+        document.getElementById('loadEvents').addEventListener('click', () => {
+            const region = document.getElementById('regionSelect').value.trim();
+            if (!region) {
+                alert('Please enter a region');
+                return;
+            }
+
+            const btn = document.getElementById('loadEvents');
+            btn.textContent = '⏳ Loading...';
+            btn.disabled = true;
+
+            socket.emit('load_events', { region: region });
+        });
+
+        socket.on('events_list', (data) => {
+            const btn = document.getElementById('loadEvents');
+            btn.textContent = '📋 Load Events';
+            btn.disabled = false;
+
+            if (data.error) {
+                alert('Error loading events: ' + data.error);
+                return;
+            }
+
+            availableEvents = data.events;
+            const select = document.getElementById('eventSelect');
+            select.innerHTML = '';
+
+            if (Object.keys(availableEvents).length === 0) {
+                select.innerHTML = '<option value="">No events found</option>';
+                return;
+            }
+
+            let index = 1;
+            for (const [eventId, eventData] of Object.entries(availableEvents)) {
+                const option = document.createElement('option');
+                option.value = eventId;
+                const eventName = eventData.name || eventId;
+                option.textContent = `${index}. ${eventId} - ${eventName}`;
+                select.appendChild(option);
+                index++;
+            }
+        });
+
+        document.getElementById('setEvent').addEventListener('click', () => {
+            const region = document.getElementById('regionSelect').value.trim();
+            const eventId = document.getElementById('eventSelect').value;
+
+            if (!region || !eventId) {
+                alert('Please select a region and event');
+                return;
+            }
+
+            currentRegion = region;
+            currentEventId = eventId;
+
+            socket.emit('set_event', {
+                region: region,
+                event_id: eventId
+            });
+
+            document.getElementById('currentEvent').textContent = `Current: ${region}/${eventId}`;
+
+            // Auto-refresh rankings
+            setTimeout(() => {
+                socket.emit('request_rankings');
+            }, 500);
+        });
+
+        // Set initial active button
+        document.querySelector('[data-screen="matchOverlay"]').classList.add('active');
+        document.getElementById('pauseTimer').disabled = true;
+    </script>
+</body>
+</html>

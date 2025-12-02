@@ -1,0 +1,291 @@
+html {
+    min-height: 100vh;
+    width: 100vw;
+    position: relative;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+}
+
+body {
+    background-color: #ff00ff; /* Chroma key magenta */
+    margin: 0;
+    padding: 0;
+    font-family: 'Lato', sans-serif;
+}
+
+.overlay-mode {
+    position: absolute;
+    width: 100vw;
+    height: 100vh;
+    top: 0;
+    left: 0;
+}
+
+/* Match Overlay Mode */
+#matchOverlay .upperThird {
+    position: absolute;
+    width: 36vw;
+    height: 13vh;
+    left: 32vw;
+    top: 0;
+
+    border-bottom-right-radius: 1vh;
+    border-bottom-left-radius: 1vh;
+
+    background: rgba(56, 56, 56, 1);
+    background: linear-gradient(to bottom, rgba(56, 56, 56, 1) 0%, rgba(0, 0, 0, 1) 100%);
+
+    color: white;
+}
+
+#matchOverlay .upperThird .eventTitle {
+    width: 36vw;
+    height: 3vh;
+    position: absolute;
+    font-size: 2vh;
+    line-height: 3vh;
+    color: white;
+    text-align: center;
+    left: 0;
+    font-family: "Lato";
+    font-weight: 900;
+    top: 10vh;
+}
+
+#matchOverlay .upperThird .logo {
+    background: url('/static/images/flltm.svg');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    width: 10vw;
+    height: 5vh;
+    top: 2.5vh;
+    position: absolute;
+    right: 0vw;
+}
+
+#matchOverlay .upperThird .fllLogo {
+    background: url('/static/images/flllogo.svg');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    width: 10vw;
+    height: 5vh;
+    top: 2.5vh;
+    position: absolute;
+    left: 1vw;
+}
+
+#matchOverlay .upperThird #timer {
+    position: absolute;
+    width: 16vw;
+    height: 10vh;
+    font-family: "Lato";
+    font-weight: 900;
+    font-size: 7vh;
+    line-height: 10vh;
+    left: 10vw;
+    text-align: center;
+    top: 0vh;
+}
+
+#timer.text-warning {
+    color: #ffa500;
+}
+
+#timer.text-danger {
+    color: #ff0000;
+}
+
+#matchOverlay .lowerThird {
+    position: absolute;
+    width: 100vw;
+    height: 15vh;
+    bottom: 1vh;
+
+    font-family: "Lato";
+
+    background: rgba(56, 56, 56, 1);
+    background: linear-gradient(to bottom, rgba(56, 56, 56, 1) 0%, rgba(0, 0, 0, 1) 100%);
+
+    transition: opacity 1s ease-in-out;
+}
+
+#matchOverlay .lowerThird .tables {
+    position: absolute;
+    width: 90vw;
+    height: 15vh;
+    left: 5vw;
+    display: flex;
+    justify-content: space-around;
+}
+
+#matchOverlay .lowerThird .tables .table {
+    position: relative;
+    width: 20vw;
+    height: 15vh;
+    color: white;
+    border-left: 1px solid silver;
+    border-right: 1px solid silver;
+}
+
+#matchOverlay .lowerThird .tables .table .tableName {
+    color: silver;
+    text-transform: uppercase;
+    line-height: 3vh;
+    font-size: 2vh;
+    height: 3vh;
+    margin-top: 2vh;
+}
+
+#matchOverlay .lowerThird .tables .table .teamNumber {
+    color: #0091ea;
+    line-height: 2vh;
+    font-size: 2vh;
+    height: 2vh;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+#matchOverlay .lowerThird .tables .table .teamName {
+    color: white;
+    overflow: hidden;
+    width: 20vw;
+    height: 6vh;
+    line-height: 6vh;
+    font-size: 3vh;
+    font-weight: 900;
+}
+
+/* Rankings Overlay */
+#rankingsOverlay {
+    width: 100vw;
+    height: 100vh;
+    text-align: center;
+}
+
+#rankingsOverlay .rkContainer {
+    position: absolute;
+    width: 90vw;
+    height: 85vh;
+    top: 7.5vh;
+    left: 5vw;
+    background: rgba(56, 56, 56, 1);
+    background: linear-gradient(to bottom, rgba(56, 56, 56, 1) 0%, rgba(0, 0, 0, 1) 100%);
+    overflow: hidden;
+    border-radius: 1vh;
+}
+
+#rankingsOverlay .rkContainer .title {
+    width: 90vw;
+    text-align: center;
+    height: 10vh;
+    top: 0;
+    position: absolute;
+    font-weight: 900;
+    line-height: 10vh;
+    font-size: 5vh;
+    color: white;
+    font-family: "Lato";
+}
+
+#rankingsOverlay .rkContainer .lower {
+    width: 88vw;
+    background-color: white;
+    top: 10vh;
+    left: 1vw;
+    height: 73vh;
+    bottom: 2vh;
+    position: absolute;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+}
+
+#rankingsOverlay .rkContainer .lower::-webkit-scrollbar {
+    display: none;
+}
+
+/* Smooth scrolling for Firefox */
+#rankingsOverlay .rkContainer .lower {
+    scrollbar-width: none;
+}
+
+#rankingsOverlay .rkContainer .lower table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#rankingsOverlay .rkContainer .lower table thead {
+    background: #333;
+    color: white;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+#rankingsOverlay .rkContainer .lower table th {
+    padding: 2.5vh;
+    font-size: 3vh;
+    font-weight: 900;
+    text-align: center;
+}
+
+#rankingsOverlay .rkContainer .lower table td {
+    padding: 2vh;
+    font-size: 2.8vh;
+    text-align: center;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+#rankingsOverlay .rkContainer .lower table tr:nth-child(even) {
+    background-color: #f5f5f5;
+}
+
+#rankingsOverlay .rkContainer .lower table tr:hover {
+    background-color: #e3f2fd;
+}
+
+#rankingsOverlay .rkContainer .lower table .team-name {
+    font-weight: 700;
+    text-align: left;
+}
+
+/* Sponsors Mode */
+#sponsors {
+    width: 100vw;
+    height: 100vh;
+    text-align: center;
+}
+
+#sponsors #spLowerThird {
+    position: absolute;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(56, 56, 56, 1);
+    background: linear-gradient(to bottom, rgba(56, 56, 56, 1) 0%, rgba(0, 0, 0, 1) 100%);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#sponsors #spLowerThird .spLogo {
+    position: absolute;
+    width: 50vw;
+    height: 30vh;
+    bottom: 35vh;
+    left: 25vw;
+    text-align: center;
+    transition: opacity 0.5s ease-in-out;
+}
+
+/* Blank Mode - just chroma key background */
+#blank {
+    background-color: #ff00ff;
+}
+
+/* Fade transitions */
+.overlay-mode {
+    transition: opacity 1s ease-in-out;
+}
