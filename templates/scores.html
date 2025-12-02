@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Scores</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/controller.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        .scores-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+        }
+
+        .scores-table thead {
+            background: linear-gradient(135deg, #546e7a 0%, #37474f 100%);
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .scores-table th {
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .scores-table th.team-col {
+            text-align: left;
+        }
+
+        .scores-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e0e0e0;
+            text-align: center;
+        }
+
+        .scores-table td.team-col {
+            text-align: left;
+            font-weight: 500;
+        }
+
+        .scores-table tr:nth-child(even) {
+            background-color: #f5f5f5;
+        }
+
+        .scores-table tr:hover {
+            background-color: #e3f2fd;
+        }
+
+        .rank-cell {
+            font-weight: bold;
+            color: #546e7a;
+            font-size: 18px;
+        }
+
+        .team-number {
+            color: #1976d2;
+            font-weight: 700;
+        }
+
+        .high-score {
+            font-weight: bold;
+            color: #4caf50;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #666;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .back-btn {
+            background: linear-gradient(135deg, #546e7a 0%, #37474f 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(84, 110, 122, 0.4);
+        }
+
+        .refresh-btn {
+            background: #4caf50;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+            margin-left: 10px;
+        }
+
+        .refresh-btn:hover:not(:disabled) {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        .refresh-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .scores-container {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .score-cell {
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Team Scores</h1>
+            <div class="status" id="connectionStatus">Disconnected</div>
+        </header>
+
+        <div class="controls">
+            <div class="control-section">
+                <a href="/controller" class="nav-link">
+                    <button class="back-btn">← Back to Controller</button>
+                </a>
+                <button class="refresh-btn" id="refreshBtn">🔄 Refresh Scores</button>
+            </div>
+
+            <div class="control-section">
+                <h2>Current Event</h2>
+                <div class="current-event" id="currentEvent">
+                    Loading...
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h2>Scores</h2>
+                <div class="scores-container" id="scoresContainer">
+                    <div class="loading">Loading scores...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        // Connection status
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            document.getElementById('connectionStatus').textContent = 'Connected';
+            document.getElementById('connectionStatus').classList.add('connected');
+
+            // Request event info and scores
+            socket.emit('request_event_info');
+            socket.emit('request_scores');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            document.getElementById('connectionStatus').textContent = 'Disconnected';
+            document.getElementById('connectionStatus').classList.remove('connected');
+        });
+
+        // Handle event info
+        socket.on('event_info', (data) => {
+            console.log('Received event info:', data);
+            if (data.region && data.event_id) {
+                const eventName = data.event_name || data.event_id;
+                document.getElementById('currentEvent').textContent = `${data.region}/${eventName}`;
+            }
+        });
+
+        // Handle scores data
+        socket.on('scores_data', (data) => {
+            console.log('Received scores:', data);
+            displayScores(data.scores);
+        });
+
+        // Handle errors
+        socket.on('error', (data) => {
+            console.error('Error:', data.message);
+            document.getElementById('scoresContainer').innerHTML =
+                `<div class="loading" style="color: #f44336;">Error: ${data.message}</div>`;
+        });
+
+        // Refresh button
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            const btn = document.getElementById('refreshBtn');
+            btn.textContent = '⏳ Refreshing...';
+            btn.disabled = true;
+
+            socket.emit('request_scores');
+
+            setTimeout(() => {
+                btn.textContent = '🔄 Refresh Scores';
+                btn.disabled = false;
+            }, 2000);
+        });
+
+        // Display scores in table
+        function displayScores(scores) {
+            const container = document.getElementById('scoresContainer');
+
+            if (!scores || scores.length === 0) {
+                container.innerHTML = '<div class="loading">No scores available</div>';
+                return;
+            }
+
+            // Sort by high score
+            const sortedScores = [...scores].sort((a, b) => b.high_score - a.high_score);
+
+            let html = `
+                <table class="scores-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Team #</th>
+                            <th class="team-col">Team Name</th>
+                            <th>High Score</th>
+                            <th>Average</th>
+                            <th>Rounds</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            sortedScores.forEach((team, index) => {
+                const rank = index + 1;
+                const teamNum = team.team_number || '?';
+                const teamName = team.name || 'Unknown Team';
+                const highScore = team.high_score || 0;
+                const avgScore = team.average_score ? team.average_score.toFixed(1) : '0.0';
+                const rounds = team.total_rounds || 0;
+
+                html += `
+                    <tr>
+                        <td class="rank-cell">${rank}</td>
+                        <td class="team-number">${teamNum}</td>
+                        <td class="team-col">${teamName}</td>
+                        <td class="high-score score-cell">${highScore}</td>
+                        <td class="score-cell">${avgScore}</td>
+                        <td>${rounds}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                    </tbody>
+                </table>
+            `;
+
+            container.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

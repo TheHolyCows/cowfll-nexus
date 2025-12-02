@@ -17,6 +17,47 @@
 
         <div class="controls">
             <div class="control-section">
+                <h2>Quick Navigation</h2>
+                <div class="button-grid" style="grid-template-columns: repeat(4, 1fr);">
+                    <a href="/setup" class="nav-link" style="text-decoration: none; display: block;">
+                        <button class="control-btn" style="width: 100%;">
+                            <div class="btn-icon">⚙️</div>
+                            <div class="btn-title">Event Setup</div>
+                            <div class="btn-desc">Configure event settings</div>
+                        </button>
+                    </a>
+                    <a href="/display" class="nav-link" target="_blank" style="text-decoration: none; display: block;">
+                        <button class="control-btn" style="width: 100%;">
+                            <div class="btn-icon">📺</div>
+                            <div class="btn-title">Open Display</div>
+                            <div class="btn-desc">Audience display window</div>
+                        </button>
+                    </a>
+                    <a href="/schedule" class="nav-link" target="_blank" style="text-decoration: none; display: block;">
+                        <button class="control-btn" style="width: 100%;">
+                            <div class="btn-icon">📅</div>
+                            <div class="btn-title">Match Schedule</div>
+                            <div class="btn-desc">View game sessions</div>
+                        </button>
+                    </a>
+                    <a href="/scores" class="nav-link" target="_blank" style="text-decoration: none; display: block;">
+                        <button class="control-btn" style="width: 100%;">
+                            <div class="btn-icon">📊</div>
+                            <div class="btn-title">Team Scores</div>
+                            <div class="btn-desc">View all team scores</div>
+                        </button>
+                    </a>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h2>Current Event</h2>
+                <div class="current-event" id="currentEvent">
+                    Loading...
+                </div>
+            </div>
+
+            <div class="control-section">
                 <h2>Select Display Mode</h2>
                 <p class="description">Choose what to show on the audience display</p>
 
@@ -73,37 +114,6 @@
                 </div>
             </div>
 
-            <div class="control-section">
-                <h2>Event Selection</h2>
-                <div class="event-selector">
-                    <div class="form-group">
-                        <label for="regionSelect">Region:</label>
-                        <input type="text" id="regionSelect" value="socal" placeholder="e.g., socal">
-                    </div>
-                    <div class="form-group">
-                        <label for="eventSelect">Event:</label>
-                        <select id="eventSelect">
-                            <option value="">Loading events...</option>
-                        </select>
-                    </div>
-                    <button class="action-btn" id="loadEvents">
-                        📋 Load Events
-                    </button>
-                    <button class="action-btn" id="setEvent">
-                        ✓ Set Event
-                    </button>
-                </div>
-                <div class="current-event" id="currentEvent">
-                    Current: socal/demo
-                </div>
-            </div>
-
-            <div class="control-section">
-                <h2>Actions</h2>
-                <button class="action-btn" id="refreshRankings">
-                    🔄 Refresh Rankings Data
-                </button>
-            </div>
         </div>
     </div>
 
@@ -126,12 +136,25 @@
             console.log('Connected to server');
             document.getElementById('connectionStatus').textContent = 'Connected';
             document.getElementById('connectionStatus').classList.add('connected');
+
+            // Request current event info on connect
+            socket.emit('request_event_info');
         });
 
         socket.on('disconnect', () => {
             console.log('Disconnected from server');
             document.getElementById('connectionStatus').textContent = 'Disconnected';
             document.getElementById('connectionStatus').classList.remove('connected');
+        });
+
+        // Handle event info updates
+        socket.on('event_info', (data) => {
+            console.log('Received event info:', data);
+            if (data.region && data.event_id) {
+                // Update current event display
+                const eventName = data.event_name || data.event_id;
+                document.getElementById('currentEvent').textContent = `Current: ${data.region}/${eventName}`;
+            }
         });
 
         // Handle overlay selection
@@ -167,19 +190,6 @@
                     btn.classList.remove('active');
                 }
             });
-        });
-
-        // Refresh rankings
-        document.getElementById('refreshRankings').addEventListener('click', () => {
-            socket.emit('request_rankings');
-            const btn = document.getElementById('refreshRankings');
-            btn.textContent = '⏳ Refreshing...';
-            btn.disabled = true;
-
-            setTimeout(() => {
-                btn.textContent = '🔄 Refresh Rankings Data';
-                btn.disabled = false;
-            }, 2000);
         });
 
         // Timer functions
@@ -227,80 +237,6 @@
         document.getElementById('startTimer').addEventListener('click', startTimer);
         document.getElementById('pauseTimer').addEventListener('click', stopTimer);
         document.getElementById('resetTimer').addEventListener('click', resetTimer);
-
-        // Event selection
-        let currentRegion = 'socal';
-        let currentEventId = 'demo';
-        let availableEvents = {};
-
-        document.getElementById('loadEvents').addEventListener('click', () => {
-            const region = document.getElementById('regionSelect').value.trim();
-            if (!region) {
-                alert('Please enter a region');
-                return;
-            }
-
-            const btn = document.getElementById('loadEvents');
-            btn.textContent = '⏳ Loading...';
-            btn.disabled = true;
-
-            socket.emit('load_events', { region: region });
-        });
-
-        socket.on('events_list', (data) => {
-            const btn = document.getElementById('loadEvents');
-            btn.textContent = '📋 Load Events';
-            btn.disabled = false;
-
-            if (data.error) {
-                alert('Error loading events: ' + data.error);
-                return;
-            }
-
-            availableEvents = data.events;
-            const select = document.getElementById('eventSelect');
-            select.innerHTML = '';
-
-            if (Object.keys(availableEvents).length === 0) {
-                select.innerHTML = '<option value="">No events found</option>';
-                return;
-            }
-
-            let index = 1;
-            for (const [eventId, eventData] of Object.entries(availableEvents)) {
-                const option = document.createElement('option');
-                option.value = eventId;
-                const eventName = eventData.name || eventId;
-                option.textContent = `${index}. ${eventId} - ${eventName}`;
-                select.appendChild(option);
-                index++;
-            }
-        });
-
-        document.getElementById('setEvent').addEventListener('click', () => {
-            const region = document.getElementById('regionSelect').value.trim();
-            const eventId = document.getElementById('eventSelect').value;
-
-            if (!region || !eventId) {
-                alert('Please select a region and event');
-                return;
-            }
-
-            currentRegion = region;
-            currentEventId = eventId;
-
-            socket.emit('set_event', {
-                region: region,
-                event_id: eventId
-            });
-
-            document.getElementById('currentEvent').textContent = `Current: ${region}/${eventId}`;
-
-            // Auto-refresh rankings
-            setTimeout(() => {
-                socket.emit('request_rankings');
-            }, 500);
-        });
 
         // Set initial active button
         document.querySelector('[data-screen="matchOverlay"]').classList.add('active');

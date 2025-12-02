@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Match Schedule</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/controller.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+        }
+
+        .schedule-table thead {
+            background: linear-gradient(135deg, #546e7a 0%, #37474f 100%);
+            color: white;
+        }
+
+        .schedule-table th {
+            padding: 15px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .schedule-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .schedule-table tr:nth-child(even) {
+            background-color: #f5f5f5;
+        }
+
+        .schedule-table tr:hover {
+            background-color: #e3f2fd;
+        }
+
+        .match-number {
+            font-weight: bold;
+            color: #546e7a;
+        }
+
+        .team-cell {
+            font-weight: 500;
+        }
+
+        .table-cell {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .time-cell {
+            color: #1976d2;
+            font-weight: 500;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #666;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .back-btn {
+            background: linear-gradient(135deg, #546e7a 0%, #37474f 100%);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .back-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(84, 110, 122, 0.4);
+        }
+
+        .refresh-btn {
+            background: #4caf50;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+            margin-left: 10px;
+        }
+
+        .refresh-btn:hover:not(:disabled) {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+
+        .refresh-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Match Schedule</h1>
+            <div class="status" id="connectionStatus">Disconnected</div>
+        </header>
+
+        <div class="controls">
+            <div class="control-section">
+                <a href="/controller" class="nav-link">
+                    <button class="back-btn">← Back to Controller</button>
+                </a>
+                <button class="refresh-btn" id="refreshBtn">🔄 Refresh Schedule</button>
+            </div>
+
+            <div class="control-section">
+                <h2>Current Event</h2>
+                <div class="current-event" id="currentEvent">
+                    Loading...
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h2>Schedule</h2>
+                <div id="scheduleContainer">
+                    <div class="loading">Loading schedule...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        // Connection status
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            document.getElementById('connectionStatus').textContent = 'Connected';
+            document.getElementById('connectionStatus').classList.add('connected');
+
+            // Request event info and schedule
+            socket.emit('request_event_info');
+            socket.emit('request_schedule');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            document.getElementById('connectionStatus').textContent = 'Disconnected';
+            document.getElementById('connectionStatus').classList.remove('connected');
+        });
+
+        // Handle event info
+        socket.on('event_info', (data) => {
+            console.log('Received event info:', data);
+            if (data.region && data.event_id) {
+                const eventName = data.event_name || data.event_id;
+                document.getElementById('currentEvent').textContent = `${data.region}/${eventName}`;
+            }
+        });
+
+        // Handle schedule data
+        socket.on('schedule_data', (data) => {
+            console.log('Received schedule:', data);
+            displaySchedule(data.schedule);
+        });
+
+        // Handle errors
+        socket.on('error', (data) => {
+            console.error('Error:', data.message);
+            document.getElementById('scheduleContainer').innerHTML =
+                `<div class="loading" style="color: #f44336;">Error: ${data.message}</div>`;
+        });
+
+        // Refresh button
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            const btn = document.getElementById('refreshBtn');
+            btn.textContent = '⏳ Refreshing...';
+            btn.disabled = true;
+
+            socket.emit('request_schedule');
+
+            setTimeout(() => {
+                btn.textContent = '🔄 Refresh Schedule';
+                btn.disabled = false;
+            }, 2000);
+        });
+
+        // Convert Unix timestamp to readable time
+        function formatTime(unixTime) {
+            if (!unixTime) return 'TBD';
+            const date = new Date(unixTime);
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+
+        // Display schedule in table
+        function displaySchedule(schedule) {
+            const container = document.getElementById('scheduleContainer');
+
+            if (!schedule || schedule.length === 0) {
+                container.innerHTML = '<div class="loading">No sessions scheduled</div>';
+                return;
+            }
+
+            let html = `
+                <table class="schedule-table">
+                    <thead>
+                        <tr>
+                            <th>Session #</th>
+                            <th>Time</th>
+                            <th>Type</th>
+                            <th>Teams</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            schedule.forEach((session, index) => {
+                const sessionNum = index + 1;
+                const time = formatTime(session.time);
+                const type = session.practice ? 'Practice' : 'Official';
+
+                // Handle teams - can be array or object
+                let teams = 'No teams';
+                if (session.teams) {
+                    if (Array.isArray(session.teams)) {
+                        teams = session.teams.filter(t => t !== null).join(', ');
+                    } else if (typeof session.teams === 'object') {
+                        // Convert object values to array
+                        const teamList = Object.values(session.teams).filter(t => t !== null);
+                        teams = teamList.join(', ');
+                    }
+                }
+
+                html += `
+                    <tr>
+                        <td class="match-number">${sessionNum}</td>
+                        <td class="time-cell">${time}</td>
+                        <td class="table-cell">${type}</td>
+                        <td class="team-cell">${teams}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                    </tbody>
+                </table>
+            `;
+
+            container.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

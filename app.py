@@ -1,11 +1,15 @@
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 import json
+import os
 from main import FLLNexusConnector
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key-here'
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Config file path
+CONFIG_FILE = 'config.json'
 
 # Initialize FLL Nexus Connector
 connector = FLLNexusConnector()
@@ -19,6 +23,36 @@ event_data = {
     "sponsor_logos": []
 }
 
+def load_config():
+    """Load configuration from file"""
+    global event_data
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                config = json.load(f)
+                event_data['region'] = config.get('region', 'socal')
+                event_data['event_id'] = config.get('event_id', 'demo')
+                event_data['event_name'] = config.get('event_name', '')
+                print(f"Loaded config: {event_data['region']}/{event_data['event_id']}")
+        except Exception as e:
+            print(f"Error loading config: {e}")
+    else:
+        print("No config file found, using defaults")
+
+def save_config():
+    """Save configuration to file"""
+    try:
+        config = {
+            'region': event_data['region'],
+            'event_id': event_data['event_id'],
+            'event_name': event_data.get('event_name', '')
+        }
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(config, f, indent=2)
+        print(f"Saved config: {event_data['region']}/{event_data['event_id']}")
+    except Exception as e:
+        print(f"Error saving config: {e}")
+
 @app.route('/')
 def index():
     """Main landing page"""
@@ -29,6 +63,11 @@ def controller():
     """Controller page for selecting overlay mode"""
     return render_template('controller.html')
 
+@app.route('/setup')
+def setup():
+    """Event setup page"""
+    return render_template('setup.html')
+
 @app.route('/display')
 def display():
     """Audience display page"""
@@ -38,6 +77,16 @@ def display():
 def audio_test():
     """Audio testing page"""
     return render_template('audio_test.html')
+
+@app.route('/schedule')
+def schedule():
+    """Match schedule page"""
+    return render_template('schedule.html')
+
+@app.route('/scores')
+def scores():
+    """Team scores page"""
+    return render_template('scores.html')
 
 @socketio.on('connect')
 def handle_connect():
@@ -109,6 +158,10 @@ def handle_set_event(data):
         print(f"Could not fetch event name: {e}")
 
     print(f"Event set to: {event_data['region']}/{event_data['event_id']}")
+
+    # Save config to file
+    save_config()
+
     emit('event_info', event_data, broadcast=True)
 
 @socketio.on('timer_update')
@@ -141,7 +194,63 @@ def handle_load_events(data):
         print(f"Error loading events: {e}")
         emit('events_list', {'error': str(e)})
 
+@socketio.on('request_schedule')
+def handle_request_schedule():
+    """Fetch match schedule (sessions) for current event"""
+    try:
+        region = event_data['region']
+        event_id = event_data['event_id']
+
+        print(f"Fetching sessions for {region}/{event_id}...")
+        sessions_data = connector.get_event_sessions(region, event_id)
+
+        if not sessions_data:
+            print("No sessions found")
+            emit('schedule_data', {'schedule': [], 'event': event_data})
+            return
+
+        # Convert sessions dict to list with formatted data
+        schedule = []
+        for session_id, session_info in sessions_data.items():
+            if isinstance(session_info, dict):
+                session_entry = {
+                    'session_id': session_id,
+                    'time': session_info.get('time', 0),
+                    'teams': session_info.get('teams', []),
+                    'practice': session_info.get('practice', False),
+                    'is_session': session_info.get('session', False)
+                }
+                schedule.append(session_entry)
+
+        # Sort by time
+        schedule.sort(key=lambda x: x['time'])
+
+        print(f"Successfully fetched {len(schedule)} sessions")
+        emit('schedule_data', {'schedule': schedule, 'event': event_data})
+    except Exception as e:
+        print(f"Error fetching schedule: {e}")
+        emit('error', {'message': str(e)})
+
+@socketio.on('request_scores')
+def handle_request_scores():
+    """Fetch detailed team scores for current event"""
+    try:
+        region = event_data['region']
+        event_id = event_data['event_id']
+
+        print(f"Fetching scores for {region}/{event_id}...")
+        scores = connector.get_team_scores_summary(region, event_id)
+
+        print(f"Successfully fetched scores for {len(scores)} teams")
+        emit('scores_data', {'scores': scores, 'event': event_data})
+    except Exception as e:
+        print(f"Error fetching scores: {e}")
+        emit('error', {'message': str(e)})
+
 if __name__ == '__main__':
+    # Load saved configuration
+    load_config()
+
     # Try to authenticate with saved token
     try:
         connector.load_refresh_token()
