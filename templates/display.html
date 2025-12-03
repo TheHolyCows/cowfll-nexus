@@ -132,11 +132,70 @@
         // Enable audio on page load (user interaction)
         document.addEventListener('click', initAudioContext, { once: true });
 
+        // Auto-refresh rankings every 15 seconds
+        let rankingsRefreshInterval = null;
+        let isMatchActive = false;
+
+        function startRankingsAutoRefresh() {
+            // Clear any existing interval
+            if (rankingsRefreshInterval) {
+                clearInterval(rankingsRefreshInterval);
+            }
+
+            // Request rankings immediately (if not during match)
+            if (!isMatchActive) {
+                socket.emit('request_rankings');
+            }
+
+            // Set up interval to refresh every 15 seconds
+            rankingsRefreshInterval = setInterval(() => {
+                // Only refresh if match is not active
+                if (!isMatchActive) {
+                    console.log('Auto-refreshing rankings data...');
+                    socket.emit('request_rankings');
+                } else {
+                    console.log('Skipping rankings refresh - match in progress');
+                }
+            }, 15000); // 15 seconds
+
+            console.log('Rankings auto-refresh started (every 15 seconds)');
+        }
+
+        function stopRankingsAutoRefresh() {
+            if (rankingsRefreshInterval) {
+                clearInterval(rankingsRefreshInterval);
+                rankingsRefreshInterval = null;
+                console.log('Rankings auto-refresh stopped');
+            }
+        }
+
+        function pauseRankingsRefresh() {
+            isMatchActive = true;
+            console.log('Rankings refresh paused - match started');
+        }
+
+        function resumeRankingsRefresh() {
+            isMatchActive = false;
+            console.log('Rankings refresh resumed - match ended');
+            // Immediately refresh rankings after match ends
+            socket.emit('request_rankings');
+        }
+
         // Connection
         socket.on('connect', () => {
             console.log('Display connected to server');
-            socket.emit('request_rankings');
+            // Register as an audience display client
+            socket.emit('register_client', { type: 'audience_display' });
             socket.emit('request_event_info');
+
+            // Start auto-refresh for rankings
+            startRankingsAutoRefresh();
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Display disconnected from server');
+            // Stop auto-refresh when disconnected
+            stopRankingsAutoRefresh();
         });
 
         // Handle overlay selection
@@ -165,12 +224,26 @@
             console.log(`Timer update: ${seconds} seconds (last: ${lastSeconds})`);
             updateTimer(seconds);
 
+            // Pause rankings refresh when match starts (timer goes from 150 to 149)
+            if (seconds == 149 && lastSeconds == 150) {
+                pauseRankingsRefresh();
+            }
+
+            // Resume rankings refresh when match ends (timer reaches 0)
+            if (seconds == 0 && lastSeconds > 0) {
+                resumeRankingsRefresh();
+            }
+
+            // Also resume if timer is reset back to 150
+            if (seconds == 150 && lastSeconds < 150 && lastSeconds > 0) {
+                resumeRankingsRefresh();
+            }
+
             // Audio cues based on timer
             // Start bell at 2:29 (when countdown begins from 2:30)
             if (seconds == 149 && lastSeconds == 150) {
                 console.log('🔔 Playing start bell');
                 playAudio(startbell, 800);
-                document.getElementById('lowerThirdContainer').style.display = 'block';
             }
 
             // Warning at 30 seconds
@@ -185,22 +258,6 @@
                 console.log('🚨 Playing stop buzzer');
                 playAudio(stopbuzzer, 400);
                 playbuzzer = false;
-            }
-
-            // Hide lower third at 2:00
-            if (seconds == 120) {
-                console.log('Hiding lower third');
-                document.getElementById('lowerThirdContainer').style.opacity = '0';
-                setTimeout(() => {
-                    document.getElementById('lowerThirdContainer').style.display = 'none';
-                }, 1000);
-            }
-
-            // Show lower third at 2:30
-            if (seconds == 150) {
-                console.log('Showing lower third');
-                document.getElementById('lowerThirdContainer').style.display = 'block';
-                document.getElementById('lowerThirdContainer').style.opacity = '1';
             }
 
             lastSeconds = seconds;
@@ -444,9 +501,22 @@
         function startSponsorSlideshow() {
             if (sponsorLogos.length <= 1) return;
 
-            // Show first sponsor
+            // Reset to first sponsor (but don't animate since it's already shown)
             currentSponsorIndex = 0;
-            showSponsor(currentSponsorIndex);
+
+            // Ensure first sponsor is visible and others are hidden
+            sponsorLogos.forEach((logo, i) => {
+                const element = document.getElementById(`sponsor-${i}`);
+                if (element) {
+                    if (i === 0) {
+                        element.style.display = 'block';
+                        element.style.opacity = '1';
+                    } else {
+                        element.style.display = 'none';
+                        element.style.opacity = '0';
+                    }
+                }
+            });
 
             // Rotate sponsors every 5 seconds
             sponsorInterval = setInterval(() => {

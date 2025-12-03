@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Match Schedule</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/controller.css') }}">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
@@ -16,7 +16,7 @@
         }
 
         .schedule-table thead {
-            background: linear-gradient(135deg, #546e7a 0%, #37474f 100%);
+            background: linear-gradient(135deg, #00AEEF 0%, #0088CC 100%);
             color: white;
         }
 
@@ -37,12 +37,12 @@
         }
 
         .schedule-table tr:hover {
-            background-color: #e3f2fd;
+            background-color: #f0f9ff;
         }
 
         .match-number {
             font-weight: bold;
-            color: #546e7a;
+            color: #00AEEF;
         }
 
         .team-cell {
@@ -50,12 +50,12 @@
         }
 
         .table-cell {
-            color: #666;
+            color: #535353;
             font-size: 14px;
         }
 
         .time-cell {
-            color: #1976d2;
+            color: #00AEEF;
             font-weight: 500;
         }
 
@@ -63,7 +63,7 @@
             text-align: center;
             padding: 40px;
             font-size: 18px;
-            color: #666;
+            color: #535353;
         }
 
         .nav-link {
@@ -73,7 +73,7 @@
         }
 
         .back-btn {
-            background: linear-gradient(135deg, #546e7a 0%, #37474f 100%);
+            background: linear-gradient(135deg, #00AEEF 0%, #0088CC 100%);
             color: white;
             padding: 12px 24px;
             border-radius: 8px;
@@ -86,12 +86,12 @@
 
         .back-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(84, 110, 122, 0.4);
+            box-shadow: 0 5px 20px rgba(0, 174, 239, 0.4);
         }
 
         .refresh-btn {
-            background: #4caf50;
-            color: white;
+            background: linear-gradient(135deg, #BED633 0%, #9AB82A 100%);
+            color: #232323;
             padding: 12px 24px;
             border-radius: 8px;
             border: none;
@@ -103,7 +103,7 @@
         }
 
         .refresh-btn:hover:not(:disabled) {
-            background: #45a049;
+            background: linear-gradient(135deg, #9AB82A 0%, #BED633 100%);
             transform: translateY(-2px);
         }
 
@@ -115,6 +115,15 @@
 </head>
 <body>
     <div class="container">
+        <!-- Branded Banner -->
+        <div class="brand-banner">
+            <img src="{{ url_for('static', filename='images/flltm.svg') }}" alt="FLL TM Logo" class="brand-logo">
+            <div class="brand-text">
+                <div class="brand-title">FLL Nexus</div>
+                <div class="brand-subtitle">Tournament Management System</div>
+            </div>
+        </div>
+
         <header>
             <h1>Match Schedule</h1>
             <div class="status" id="connectionStatus">Disconnected</div>
@@ -192,7 +201,7 @@
         socket.on('error', (data) => {
             console.error('Error:', data.message);
             document.getElementById('scheduleContainer').innerHTML =
-                `<div class="loading" style="color: #f44336;">Error: ${data.message}</div>`;
+                `<div class="loading" style="color: #EE3123;">Error: ${data.message}</div>`;
         });
 
         // Refresh button

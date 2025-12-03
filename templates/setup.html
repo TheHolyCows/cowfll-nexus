@@ -4,12 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Event Setup</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/controller.css') }}">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
 <body>
     <div class="container">
+        <!-- Branded Banner -->
+        <div class="brand-banner">
+            <img src="{{ url_for('static', filename='images/flltm.svg') }}" alt="FLL TM Logo" class="brand-logo">
+            <div class="brand-text">
+                <div class="brand-title">FLL Nexus</div>
+                <div class="brand-subtitle">Tournament Management System</div>
+            </div>
+        </div>
+
         <header>
             <h1>Event Setup</h1>
             <div class="status" id="connectionStatus">Disconnected</div>
@@ -17,36 +26,30 @@
 
         <div class="controls">
             <div class="control-section">
-                <h2>Navigation</h2>
-                <div class="button-grid">
-                    <a href="/controller" class="nav-link">
-                        <button class="control-btn">
-                            <div class="btn-icon">🎮</div>
-                            <div class="btn-title">Controller</div>
-                            <div class="btn-desc">Control displays and timer</div>
+                <a href="/controller" class="nav-link" style="text-decoration: none; display: inline-block; margin-bottom: 20px;">
+                    <button class="back-btn" style="background: linear-gradient(135deg, #00AEEF 0%, #0088CC 100%); color: white; padding: 12px 24px; border-radius: 8px; border: none; cursor: pointer; font-size: 16px; font-weight: bold; transition: all 0.3s;">← Back to Controller</button>
+                </a>
+            </div>
+
+            <div class="control-section">
+                <h2>Authentication Status</h2>
+                <p class="description">Manage your FLL Nexus authentication</p>
+
+                <div id="authStatusSection">
+                    <div class="current-event" id="authStatus" style="background: #f9f9f9; color: #535353;">
+                        Checking authentication...
+                    </div>
+
+                    <div id="authButtons" style="margin-top: 15px; display: none; text-align: center;">
+                        <a href="/auth" id="authLink" style="text-decoration: none; display: inline-block; margin-right: 10px;">
+                            <button class="action-btn" id="authBtn" style="width: auto; display: inline-block;">
+                                🔐 Authenticate
+                            </button>
+                        </a>
+                        <button class="action-btn" id="logoutBtn" style="width: auto; display: inline-block; background: linear-gradient(135deg, #EE3123 0%, #CC291F 100%); display: none;">
+                            🚪 Logout
                         </button>
-                    </a>
-                    <a href="/display" class="nav-link" target="_blank">
-                        <button class="control-btn">
-                            <div class="btn-icon">📺</div>
-                            <div class="btn-title">Display</div>
-                            <div class="btn-desc">Open audience display</div>
-                        </button>
-                    </a>
-                    <a href="/schedule" class="nav-link" target="_blank">
-                        <button class="control-btn">
-                            <div class="btn-icon">📅</div>
-                            <div class="btn-title">Match Schedule</div>
-                            <div class="btn-desc">View match schedule</div>
-                        </button>
-                    </a>
-                    <a href="/scores" class="nav-link" target="_blank">
-                        <button class="control-btn">
-                            <div class="btn-icon">📊</div>
-                            <div class="btn-title">Team Scores</div>
-                            <div class="btn-desc">View team scores</div>
-                        </button>
-                    </a>
+                    </div>
                 </div>
             </div>
 
@@ -95,6 +98,8 @@
         let currentRegion = 'socal';
         let currentEventId = 'demo';
         let availableEvents = {};
+        let tokenExpiryTimestamp = null;
+        let expiryUpdateInterval = null;
 
         // Connection status
         socket.on('connect', () => {
@@ -102,8 +107,9 @@
             document.getElementById('connectionStatus').textContent = 'Connected';
             document.getElementById('connectionStatus').classList.add('connected');
 
-            // Request current event info on connect
+            // Request current event info and user info on connect
             socket.emit('request_event_info');
+            socket.emit('request_user_info');
         });
 
         // Authentication status (no redirect needed - app still works without auth)
@@ -224,6 +230,129 @@
                 btn.textContent = '🔄 Refresh Rankings Data';
                 btn.disabled = false;
             }, 2000);
+        });
+
+        // Format token expiry time
+        function formatTokenExpiry(expiryTimestamp) {
+            if (!expiryTimestamp) return '';
+
+            const expiryDate = new Date(expiryTimestamp * 1000); // Convert Unix timestamp to milliseconds
+            const now = new Date();
+            const timeUntilExpiry = expiryDate - now;
+
+            // Calculate time remaining
+            const minutesRemaining = Math.floor(timeUntilExpiry / 60000);
+            const hoursRemaining = Math.floor(minutesRemaining / 60);
+            const minsRemainder = minutesRemaining % 60;
+
+            // Format the expiry date/time
+            const timeString = expiryDate.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+
+            // Build time remaining string
+            let remainingStr = '';
+            if (timeUntilExpiry > 0) {
+                if (hoursRemaining > 0) {
+                    remainingStr = ` (expires in ${hoursRemaining}h ${minsRemainder}m)`;
+                } else {
+                    remainingStr = ` (expires in ${minutesRemaining}m)`;
+                }
+            } else {
+                remainingStr = ' (expired - will refresh on next request)';
+            }
+
+            return `Token expires: ${timeString}${remainingStr}`;
+        }
+
+        // Update token expiry display
+        function updateTokenExpiryDisplay() {
+            if (!tokenExpiryTimestamp) return;
+
+            const authStatus = document.getElementById('authStatus');
+            const email = authStatus.getAttribute('data-email');
+
+            if (email) {
+                const expiryInfo = formatTokenExpiry(tokenExpiryTimestamp);
+                authStatus.innerHTML = `
+                    <div style="font-weight: bold; margin-bottom: 5px;">Authenticated as: ${email}</div>
+                    <div style="font-size: 12px; opacity: 0.8;">${expiryInfo}</div>
+                `;
+            }
+        }
+
+        // Handle user info response
+        socket.on('user_info', (data) => {
+            const authStatus = document.getElementById('authStatus');
+            const authButtons = document.getElementById('authButtons');
+            const authBtn = document.getElementById('authBtn');
+            const authLink = document.getElementById('authLink');
+            const logoutBtn = document.getElementById('logoutBtn');
+
+            authButtons.style.display = 'block';
+
+            if (data.authenticated && data.email) {
+                tokenExpiryTimestamp = data.token_expiry;
+                authStatus.setAttribute('data-email', data.email);
+
+                const expiryInfo = formatTokenExpiry(data.token_expiry);
+                authStatus.innerHTML = `
+                    <div style="font-weight: bold; margin-bottom: 5px;">Authenticated as: ${data.email}</div>
+                    <div style="font-size: 12px; opacity: 0.8;">${expiryInfo}</div>
+                `;
+                authStatus.style.background = '#f0f9ff';
+                authStatus.style.color = '#00AEEF';
+
+                // Disable authenticate button when logged in
+                authBtn.disabled = true;
+                authLink.style.pointerEvents = 'none';
+                authLink.style.cursor = 'not-allowed';
+
+                logoutBtn.style.display = 'inline-block';
+
+                // Start updating the expiry display every minute
+                if (expiryUpdateInterval) {
+                    clearInterval(expiryUpdateInterval);
+                }
+                expiryUpdateInterval = setInterval(updateTokenExpiryDisplay, 60000); // Update every minute
+            } else {
+                tokenExpiryTimestamp = null;
+                authStatus.removeAttribute('data-email');
+                authStatus.textContent = 'Not authenticated';
+                authStatus.style.background = '#fff3cd';
+                authStatus.style.color = '#856404';
+
+                // Enable authenticate button when not logged in
+                authBtn.disabled = false;
+                authLink.style.pointerEvents = 'auto';
+                authLink.style.cursor = 'pointer';
+
+                logoutBtn.style.display = 'none';
+
+                // Stop updating expiry display
+                if (expiryUpdateInterval) {
+                    clearInterval(expiryUpdateInterval);
+                    expiryUpdateInterval = null;
+                }
+            }
+        });
+
+        // Logout button
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            if (confirm('Are you sure you want to logout? You will need to re-authenticate to fetch live data.')) {
+                socket.emit('logout');
+            }
+        });
+
+        // Handle logout success
+        socket.on('logout_success', (data) => {
+            console.log('Logged out successfully');
+            // Refresh user info display
+            socket.emit('request_user_info');
         });
     </script>
 </body>

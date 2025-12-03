@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table Display</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Lato', sans-serif;
+            overflow: hidden;
+            background: white;
+        }
+
+        /* Room header - top 15% */
+        .roomHeader {
+            position: absolute;
+            width: 100vw;
+            height: 15vh;
+            left: 0;
+            top: 0;
+            background: linear-gradient(to bottom, rgba(56,56,56,1) 0%, rgba(0,0,0,1) 100%);
+            color: white;
+            font-family: 'Lato', sans-serif;
+            font-size: 8vh;
+            line-height: 15vh;
+            font-weight: 900;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .roomHeader #scheduleTime {
+            position: absolute;
+            top: 0;
+            right: 1vw;
+            font-weight: 700;
+            font-size: 3vh;
+            line-height: 15vh;
+        }
+
+        /* Room center - middle 70% for team name */
+        .roomCenter {
+            position: absolute;
+            width: 100vw;
+            height: 70vh;
+            top: 15vh;
+            left: 0;
+            font-family: 'Lato', sans-serif;
+            font-size: 18vh;
+            font-weight: 900;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 2vw;
+            color: #000;
+            overflow: hidden;
+        }
+
+        .roomCenter span {
+            display: block;
+            width: 100%;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+            line-height: 1.2;
+        }
+
+        /* Room footer - bottom 15% */
+        .roomFooter {
+            position: absolute;
+            width: 100vw;
+            height: 15vh;
+            left: 0;
+            top: 85vh;
+            background: linear-gradient(to bottom, rgba(56,56,56,1) 0%, rgba(0,0,0,1) 100%);
+            color: white;
+            font-family: 'Lato', sans-serif;
+            font-size: 8vh;
+            line-height: 15vh;
+            font-weight: 700;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Table selector overlay */
+        #selectScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        #selectScreen h1 {
+            color: white;
+            font-size: 6vh;
+            margin-bottom: 40px;
+            font-weight: 900;
+        }
+
+        .selectButton {
+            padding: 20px 40px;
+            margin: 10px;
+            font-size: 4vh;
+            font-weight: 700;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            min-width: 300px;
+            transition: all 0.3s;
+        }
+
+        .selectButton:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-primary {
+            background: #2196f3;
+            color: white;
+        }
+
+        #signScreen {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Table selection screen -->
+    <div id="selectScreen">
+        <h1>Select Table</h1>
+        <!-- Table buttons will be generated here -->
+    </div>
+
+    <!-- Room sign display -->
+    <div id="signScreen">
+        <div class="roomHeader">
+            <span id="roomTitle">Table 1</span>
+            <div id="scheduleTime"></div>
+        </div>
+
+        <div class="roomCenter">
+            <span id="teamName">-</span>
+        </div>
+
+        <div class="roomFooter">
+            <span id="teamNumber">-</span>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentTableIndex = 0;
+        let currentSession = null;
+        let scheduleData = [];
+        let tableName = "Table 1";
+
+        // Connection
+        socket.on('connect', () => {
+            console.log('Table display connected to server');
+            // Register as a table display client
+            socket.emit('register_client', { type: 'table_display' });
+            socket.emit('request_current_session');
+            socket.emit('request_schedule');
+        });
+
+        // Handle schedule data
+        socket.on('schedule_data', (data) => {
+            console.log('Received schedule data:', data);
+            scheduleData = data.schedule || [];
+
+            // Generate table selector buttons
+            generateTableButtons();
+
+            // Update display if we already have a session
+            if (currentSession !== null) {
+                updateTableDisplay();
+            }
+        });
+
+        // Generate table selector buttons based on schedule
+        function generateTableButtons() {
+            const selectScreen = document.getElementById('selectScreen');
+
+            // Remove old buttons
+            const oldButtons = selectScreen.querySelectorAll('.selectButton');
+            oldButtons.forEach(btn => btn.remove());
+
+            if (scheduleData.length === 0) return;
+
+            // Find max number of tables
+            let maxTables = 4; // default
+            scheduleData.forEach(session => {
+                if (session.teams) {
+                    const teamCount = Array.isArray(session.teams)
+                        ? session.teams.filter(t => t !== null).length
+                        : Object.keys(session.teams).length;
+                    maxTables = Math.max(maxTables, teamCount);
+                }
+            });
+
+            // Create buttons for each table
+            for (let i = 1; i <= maxTables; i++) {
+                const button = document.createElement('button');
+                button.className = 'selectButton btn-primary';
+                button.textContent = `Table ${i}`;
+                button.setAttribute('data-table-index', i - 1);
+                button.setAttribute('data-table-name', `Table ${i}`);
+                selectScreen.appendChild(button);
+            }
+
+            console.log(`Created ${maxTables} table selector buttons`);
+        }
+
+        // Handle table selection button clicks
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('selectButton')) {
+                currentTableIndex = parseInt(e.target.getAttribute('data-table-index'));
+                tableName = e.target.getAttribute('data-table-name');
+
+                document.getElementById('roomTitle').textContent = tableName;
+
+                // Fade transition
+                document.getElementById('selectScreen').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('selectScreen').style.display = 'none';
+                    document.getElementById('signScreen').style.display = 'block';
+                    document.getElementById('signScreen').style.opacity = '0';
+                    setTimeout(() => {
+                        document.getElementById('signScreen').style.opacity = '1';
+                    }, 10);
+                }, 500);
+
+                updateTableDisplay();
+            }
+        });
+
+        // Handle session selection from controller
+        socket.on('session_update', (data) => {
+            console.log('Session updated:', data);
+            currentSession = data.session;
+            updateTableDisplay();
+        });
+
+        // Handle current session on initial connect
+        socket.on('current_session', (data) => {
+            console.log('Current session:', data);
+            currentSession = data.session;
+            updateTableDisplay();
+        });
+
+        // Update the team display based on current session and table
+        function updateTableDisplay() {
+            const teamNameEl = document.getElementById('teamName');
+            const teamNumberEl = document.getElementById('teamNumber');
+            const scheduleTimeEl = document.getElementById('scheduleTime');
+
+            if (currentSession === null || scheduleData.length === 0) {
+                teamNameEl.textContent = '-';
+                teamNumberEl.textContent = '-';
+                scheduleTimeEl.textContent = '';
+                return;
+            }
+
+            // Find the session in schedule data
+            const session = scheduleData[currentSession];
+            if (!session) {
+                teamNameEl.textContent = '-';
+                teamNumberEl.textContent = '-';
+                scheduleTimeEl.textContent = '';
+                return;
+            }
+
+            // Get teams for this session
+            let teams = [];
+            if (Array.isArray(session.teams)) {
+                teams = session.teams.filter(t => t !== null);
+            } else if (typeof session.teams === 'object') {
+                teams = Object.values(session.teams).filter(t => t !== null);
+            }
+
+            // Get the team at this table index
+            const teamNumber = teams[currentTableIndex];
+
+            if (!teamNumber) {
+                teamNameEl.textContent = '-';
+                teamNumberEl.textContent = '-';
+            } else {
+                teamNumberEl.textContent = teamNumber;
+                teamNameEl.textContent = 'Loading...';
+
+                // Request team name
+                socket.emit('request_team_name', { team_number: teamNumber });
+            }
+
+            // Update schedule time
+            const time = formatTime(session.time);
+            scheduleTimeEl.textContent = time;
+        }
+
+        // Handle team name response
+        socket.on('team_name', (data) => {
+            const teamNameEl = document.getElementById('teamName');
+            if (data.team_number) {
+                const teamName = data.name || `Team ${data.team_number}`;
+                teamNameEl.textContent = teamName;
+
+                // Adjust font size based on team name length
+                adjustTeamNameFontSize(teamName);
+            }
+        });
+
+        // Dynamically adjust font size for long team names
+        function adjustTeamNameFontSize(teamName) {
+            const teamNameEl = document.getElementById('teamName');
+            const container = document.querySelector('.roomCenter');
+
+            const length = teamName.length;
+            let fontSize;
+
+            if (length <= 15) {
+                fontSize = '18vh';  // Very large for short names
+            } else if (length <= 25) {
+                fontSize = '14vh';  // Large for medium names
+            } else if (length <= 40) {
+                fontSize = '10vh';  // Medium for longer names
+            } else if (length <= 60) {
+                fontSize = '8vh';   // Smaller for very long names
+            } else {
+                fontSize = '6vh';   // Smallest for ridiculously long names
+            }
+
+            container.style.fontSize = fontSize;
+            console.log(`Team name length: ${length}, Font size: ${fontSize}`);
+        }
+
+        // Format Unix timestamp to readable time
+        function formatTime(unixTime) {
+            if (!unixTime) return '';
+            const date = new Date(unixTime);
+            return date.toLocaleString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+
+        // Add smooth transitions
+        document.getElementById('selectScreen').style.transition = 'opacity 0.5s';
+        document.getElementById('signScreen').style.transition = 'opacity 0.5s';
+    </script>
+</body>
+</html>

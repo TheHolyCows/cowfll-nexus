@@ -4,15 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Display Controller</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/controller.css') }}">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
 <body>
     <div class="container">
+        <!-- Branded Banner -->
+        <div class="brand-banner">
+            <img src="{{ url_for('static', filename='images/flltm.svg') }}" alt="FLL TM Logo" class="brand-logo">
+            <div class="brand-text">
+                <div class="brand-title">FLL Nexus</div>
+                <div class="brand-subtitle">Tournament Management System</div>
+            </div>
+        </div>
+
         <header>
             <h1>Display Controller</h1>
-            <div class="status" id="connectionStatus">Disconnected</div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <div class="status" id="connectionStatus">Disconnected</div>
+                <div class="status client-count" id="tableCount">Tables: 0</div>
+                <div class="status client-count" id="audienceCount">Displays: 0</div>
+            </div>
         </header>
 
         <!-- Authentication notification banner -->
@@ -23,7 +36,7 @@
                 <div>
                     <strong style="color: #856404;">Authentication Required</strong>
                     <p style="margin: 5px 0 0 0; color: #856404;">You need to authenticate to fetch live data from FLL Nexus.</p>
-                    <a href="/auth" style="display: inline-block; margin-top: 10px; padding: 8px 16px; background: #546e7a; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Authenticate Now</a>
+                    <a href="/auth" style="display: inline-block; margin-top: 10px; padding: 8px 16px; background: #00AEEF; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Authenticate Now</a>
                 </div>
             </div>
         </div>
@@ -31,7 +44,7 @@
         <div class="controls">
             <div class="control-section">
                 <h2>Quick Navigation</h2>
-                <div class="button-grid" style="grid-template-columns: repeat(4, 1fr);">
+                <div class="button-grid" style="grid-template-columns: repeat(5, 1fr); min-width: 0;">
                     <a href="/setup" class="nav-link" style="text-decoration: none; display: block;">
                         <button class="control-btn" style="width: 100%;">
                             <div class="btn-icon">⚙️</div>
@@ -42,8 +55,15 @@
                     <a href="/display" class="nav-link" target="_blank" style="text-decoration: none; display: block;">
                         <button class="control-btn" style="width: 100%;">
                             <div class="btn-icon">📺</div>
-                            <div class="btn-title">Open Display</div>
-                            <div class="btn-desc">Audience display window</div>
+                            <div class="btn-title">Audience Display</div>
+                            <div class="btn-desc">Open audience display</div>
+                        </button>
+                    </a>
+                    <a href="/table_display" class="nav-link" target="_blank" style="text-decoration: none; display: block;">
+                        <button class="control-btn" style="width: 100%;">
+                            <div class="btn-icon">🖥️</div>
+                            <div class="btn-title">Table Display</div>
+                            <div class="btn-desc">Open table display</div>
                         </button>
                     </a>
                     <a href="/schedule" class="nav-link" target="_blank" style="text-decoration: none; display: block;">
@@ -127,6 +147,48 @@
                 </div>
             </div>
 
+            <div class="control-section">
+                <h2>Session Control</h2>
+                <p class="description">Control which session is displayed on table displays</p>
+
+                <div class="current-event" id="currentSession">
+                    No session selected
+                </div>
+
+                <div class="timer-controls" style="margin-top: 20px;">
+                    <button class="timer-btn" id="prevSession" style="background: linear-gradient(135deg, #00AEEF 0%, #0088CC 100%); color: white; font-weight: bold;">
+                        ⬅️ Previous
+                    </button>
+                    <button class="timer-btn" id="nextSession" style="background: linear-gradient(135deg, #00AEEF 0%, #0088CC 100%); color: white; font-weight: bold;">
+                        Next ➡️
+                    </button>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <label for="sessionSelect" style="font-weight: bold; margin-right: 10px;">Jump to Session:</label>
+                    <select id="sessionSelect" style="padding: 10px; font-size: 16px; border-radius: 5px; border: 2px solid #00AEEF;">
+                        <option value="">Load schedule first</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="control-section">
+                <h2>System Status</h2>
+                <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; border: 2px solid #e0e0e0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <div style="color: #535353;">
+                            <strong>Last Rankings Update:</strong>
+                        </div>
+                        <div id="lastRankingsUpdate" style="color: #00AEEF; font-weight: bold;">
+                            Never
+                        </div>
+                    </div>
+                    <button class="action-btn" id="refreshRankingsNow" style="padding: 12px; font-size: 14px;">
+                        🔄 Refresh Rankings Now
+                    </button>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -136,6 +198,8 @@
         let timerInterval = null;
         let currentSeconds = 150; // 2:30
         let isTimerRunning = false;
+        let scheduleData = [];
+        let currentSessionIndex = null;
 
         const screenNames = {
             'matchOverlay': 'Game Mode',
@@ -152,6 +216,15 @@
 
             // Request current event info on connect
             socket.emit('request_event_info');
+            // Request schedule data for session control
+            socket.emit('request_schedule');
+        });
+
+        // Handle client counts
+        socket.on('client_counts', (data) => {
+            console.log('Client counts:', data);
+            document.getElementById('tableCount').textContent = `Tables: ${data.table_displays}`;
+            document.getElementById('audienceCount').textContent = `Displays: ${data.audience_displays}`;
         });
 
         // Authentication check - show notification banner if not authenticated
@@ -233,6 +306,20 @@
         function startTimer() {
             if (isTimerRunning) return;
 
+            // Automatically switch to match overlay mode when starting timer
+            socket.emit('set_overlay', { screen: 'matchOverlay' });
+            currentScreen = 'matchOverlay';
+            document.getElementById('currentDisplay').textContent = screenNames['matchOverlay'] || 'matchOverlay';
+
+            // Update active button
+            document.querySelectorAll('.control-btn').forEach(btn => {
+                if (btn.getAttribute('data-screen') === 'matchOverlay') {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
             isTimerRunning = true;
             document.getElementById('startTimer').disabled = true;
             document.getElementById('pauseTimer').disabled = false;
@@ -267,6 +354,161 @@
         document.getElementById('startTimer').addEventListener('click', startTimer);
         document.getElementById('pauseTimer').addEventListener('click', stopTimer);
         document.getElementById('resetTimer').addEventListener('click', resetTimer);
+
+        // Handle schedule data for session control
+        socket.on('schedule_data', (data) => {
+            console.log('Received schedule data:', data);
+            scheduleData = data.schedule || [];
+
+            // Populate session selector
+            const select = document.getElementById('sessionSelect');
+            select.innerHTML = '';
+
+            if (scheduleData.length === 0) {
+                select.innerHTML = '<option value="">No sessions available</option>';
+                return;
+            }
+
+            scheduleData.forEach((session, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                const sessionNum = index + 1;
+                const type = session.practice ? 'Practice' : 'Official';
+                const time = formatSessionTime(session.time);
+                option.textContent = `Session ${sessionNum} - ${type} - ${time}`;
+                select.appendChild(option);
+            });
+
+            console.log(`Loaded ${scheduleData.length} sessions`);
+        });
+
+        // Format time for session display
+        function formatSessionTime(unixTime) {
+            if (!unixTime) return 'TBD';
+            const date = new Date(unixTime);
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+
+        // Update session display
+        function updateSessionDisplay() {
+            const sessionDisplay = document.getElementById('currentSession');
+
+            if (currentSessionIndex === null || scheduleData.length === 0) {
+                sessionDisplay.textContent = 'No session selected';
+                return;
+            }
+
+            const session = scheduleData[currentSessionIndex];
+            if (!session) {
+                sessionDisplay.textContent = 'Invalid session';
+                return;
+            }
+
+            const sessionNum = currentSessionIndex + 1;
+            const type = session.practice ? 'Practice' : 'Official';
+            const time = formatSessionTime(session.time);
+
+            // Count teams
+            let teamCount = 0;
+            if (Array.isArray(session.teams)) {
+                teamCount = session.teams.filter(t => t !== null).length;
+            } else if (typeof session.teams === 'object') {
+                teamCount = Object.keys(session.teams).length;
+            }
+
+            sessionDisplay.innerHTML = `
+                <strong>Session ${sessionNum}</strong><br>
+                ${type} - ${time}<br>
+                <small>${teamCount} tables</small>
+            `;
+        }
+
+        // Previous session button
+        document.getElementById('prevSession').addEventListener('click', () => {
+            if (scheduleData.length === 0) return;
+
+            if (currentSessionIndex === null) {
+                currentSessionIndex = 0;
+            } else if (currentSessionIndex > 0) {
+                currentSessionIndex--;
+            }
+
+            updateSessionDisplay();
+            socket.emit('set_session', { session: currentSessionIndex });
+        });
+
+        // Next session button
+        document.getElementById('nextSession').addEventListener('click', () => {
+            if (scheduleData.length === 0) return;
+
+            if (currentSessionIndex === null) {
+                currentSessionIndex = 0;
+            } else if (currentSessionIndex < scheduleData.length - 1) {
+                currentSessionIndex++;
+            }
+
+            updateSessionDisplay();
+            socket.emit('set_session', { session: currentSessionIndex });
+        });
+
+        // Session selector dropdown
+        document.getElementById('sessionSelect').addEventListener('change', (e) => {
+            const selectedIndex = parseInt(e.target.value);
+            if (!isNaN(selectedIndex)) {
+                currentSessionIndex = selectedIndex;
+                updateSessionDisplay();
+                socket.emit('set_session', { session: currentSessionIndex });
+            }
+        });
+
+        // Handle session update from server
+        socket.on('session_update', (data) => {
+            console.log('Session updated:', data);
+            currentSessionIndex = data.session;
+            updateSessionDisplay();
+        });
+
+        // Handle rankings data updates to show last refresh time
+        socket.on('rankings_data', (data) => {
+            console.log('Rankings data received');
+            updateLastRankingsTime();
+        });
+
+        // Format and update the last rankings update time
+        function updateLastRankingsTime() {
+            const now = new Date();
+            const timeString = now.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
+
+            document.getElementById('lastRankingsUpdate').textContent = timeString;
+        }
+
+        // Refresh rankings button
+        document.getElementById('refreshRankingsNow').addEventListener('click', () => {
+            const btn = document.getElementById('refreshRankingsNow');
+            const originalText = btn.textContent;
+            btn.textContent = '⏳ Refreshing...';
+            btn.disabled = true;
+
+            socket.emit('request_rankings');
+
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }, 2000);
+        });
 
         // Set initial active button
         document.querySelector('[data-screen="matchOverlay"]').classList.add('active');

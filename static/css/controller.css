@@ -5,14 +5,14 @@
 }
 
 body {
-    font-family: 'Roboto', 'Arial', sans-serif;
-    background: linear-gradient(135deg, #455a64 0%, #263238 100%);
+    font-family: 'Lato', 'Roboto', 'Arial', sans-serif;
+    background: linear-gradient(135deg, #232323 0%, #535353 100%);
     min-height: 100vh;
     padding: 20px;
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
     background: white;
     border-radius: 10px;
@@ -20,8 +20,42 @@ body {
     overflow: hidden;
 }
 
+/* Branded Banner */
+.brand-banner {
+    background: linear-gradient(135deg, #232323 0%, #535353 100%);
+    padding: 20px 30px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    border-bottom: 4px solid #00AEEF;
+}
+
+.brand-logo {
+    height: 60px;
+    width: auto;
+}
+
+.brand-text {
+    flex: 1;
+    text-align: right;
+}
+
+.brand-title {
+    font-size: 28px;
+    font-weight: 900;
+    color: #FFFFFF;
+    letter-spacing: 1px;
+}
+
+.brand-subtitle {
+    font-size: 14px;
+    color: #A7A9AB;
+    font-weight: 400;
+    margin-top: 2px;
+}
+
 header {
-    background: linear-gradient(135deg, #546e7a 0%, #37474f 100%);
+    background: linear-gradient(135deg, #00AEEF 0%, #0088CC 100%);
     color: white;
     padding: 30px;
     display: flex;
@@ -42,7 +76,15 @@ h1 {
 }
 
 .status.connected {
-    background: #4caf50;
+    background: #BED633;
+    color: #232323;
+    font-weight: bold;
+}
+
+.status.client-count {
+    background: #00AEEF;
+    color: white;
+    font-weight: bold;
 }
 
 .controls {
@@ -56,11 +98,12 @@ h1 {
 .control-section h2 {
     font-size: 24px;
     margin-bottom: 10px;
-    color: #333;
+    color: #232323;
+    font-weight: 900;
 }
 
 .description {
-    color: #666;
+    color: #535353;
     margin-bottom: 20px;
 }
 
@@ -83,12 +126,12 @@ h1 {
 .control-btn:hover {
     transform: translateY(-5px);
     box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-    border-color: #546e7a;
+    border-color: #00AEEF;
 }
 
 .control-btn.active {
-    border-color: #546e7a;
-    background: linear-gradient(135deg, #546e7a 0%, #37474f 100%);
+    border-color: #00AEEF;
+    background: linear-gradient(135deg, #00AEEF 0%, #0088CC 100%);
     color: white;
 }
 
@@ -119,14 +162,14 @@ h1 {
     text-align: center;
     font-size: 28px;
     font-weight: bold;
-    color: #546e7a;
-    border: 3px dashed #546e7a;
+    color: #00AEEF;
+    border: 3px dashed #00AEEF;
 }
 
 .action-btn {
     width: 100%;
     padding: 20px;
-    background: linear-gradient(135deg, #546e7a 0%, #37474f 100%);
+    background: linear-gradient(135deg, #00AEEF 0%, #0088CC 100%);
     color: white;
     border: none;
     border-radius: 10px;
@@ -138,7 +181,7 @@ h1 {
 
 .action-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 5px 20px rgba(84, 110, 122, 0.4);
+    box-shadow: 0 5px 20px rgba(0, 174, 239, 0.4);
 }
 
 .action-btn:disabled {
@@ -179,7 +222,7 @@ h1 {
 .form-group input:focus,
 .form-group select:focus {
     outline: none;
-    border-color: #546e7a;
+    border-color: #00AEEF;
 }
 
 .event-selector .action-btn {
@@ -188,18 +231,18 @@ h1 {
 }
 
 .current-event {
-    background: #e3f2fd;
+    background: #f0f9ff;
     padding: 15px;
     border-radius: 5px;
     text-align: center;
     font-weight: bold;
-    color: #1976d2;
-    border: 2px solid #1976d2;
+    color: #00AEEF;
+    border: 2px solid #00AEEF;
 }
 
 /* Timer Controls */
 .timer-display {
-    background: linear-gradient(135deg, #546e7a 0%, #37474f 100%);
+    background: linear-gradient(135deg, #232323 0%, #535353 100%);
     color: white;
     padding: 40px;
     border-radius: 10px;
@@ -208,7 +251,7 @@ h1 {
     font-weight: bold;
     font-family: 'Courier New', monospace;
     margin-bottom: 20px;
-    box-shadow: 0 5px 20px rgba(84, 110, 122, 0.3);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
 }
 
 .timer-controls {
@@ -229,12 +272,13 @@ h1 {
 }
 
 .start-btn {
-    background: #4caf50;
-    color: white;
+    background: linear-gradient(135deg, #BED633 0%, #9AB82A 100%);
+    color: #232323;
+    font-weight: bold;
 }
 
 .start-btn:hover:not(:disabled) {
-    background: #45a049;
+    background: linear-gradient(135deg, #9AB82A 0%, #BED633 100%);
     transform: translateY(-2px);
 }
 
@@ -249,12 +293,12 @@ h1 {
 }
 
 .reset-btn {
-    background: #f44336;
+    background: linear-gradient(135deg, #EE3123 0%, #CC291F 100%);
     color: white;
 }
 
 .reset-btn:hover:not(:disabled) {
-    background: #e53935;
+    background: linear-gradient(135deg, #CC291F 0%, #EE3123 100%);
     transform: translateY(-2px);
 }
 
@@ -265,7 +309,7 @@ h1 {
 
 .timer-info {
     text-align: center;
-    color: #666;
+    color: #535353;
     font-size: 14px;
 }
 
@@ -291,5 +335,23 @@ h1 {
 
     .timer-controls {
         grid-template-columns: 1fr;
+    }
+
+    .brand-banner {
+        padding: 15px 20px;
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .brand-logo {
+        height: 50px;
+    }
+
+    .brand-title {
+        font-size: 24px;
+    }
+
+    .brand-subtitle {
+        font-size: 12px;
     }
 }

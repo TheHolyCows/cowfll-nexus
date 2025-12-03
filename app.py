@@ -17,11 +17,18 @@ connector = FLLNexusConnector()
 # Global state
 current_overlay = "matchOverlay"
 is_authenticated = False
+current_session = None
 event_data = {
     "region": "socal",
     "event_id": "demo",
     "rankings": [],
     "sponsor_logos": []
+}
+
+# Track connected clients by type
+connected_clients = {
+    'table_displays': set(),  # Session IDs of connected table displays
+    'audience_displays': set()  # Session IDs of connected audience displays
 }
 
 def check_authentication():
@@ -101,20 +108,59 @@ def auth():
     """Authentication page"""
     return render_template('auth.html')
 
+@app.route('/table_display')
+def table_display():
+    """Table display page for showing team info at specific tables"""
+    return render_template('table_display.html')
+
+def broadcast_client_counts():
+    """Broadcast current client counts to all controllers"""
+    counts = {
+        'table_displays': len(connected_clients['table_displays']),
+        'audience_displays': len(connected_clients['audience_displays'])
+    }
+    emit('client_counts', counts, broadcast=True)
+
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection"""
     print(f'Client connected: {request.sid}')
     emit('connection_established', {'client_id': request.sid})
-    # Send current overlay selection
-    emit('overlay_selection', {'screen': current_overlay})
+    # Send current overlay selection (only to this client, not broadcast)
+    emit('overlay_selection', {'screen': current_overlay}, room=request.sid)
     # Send authentication status
     emit('auth_status', {'authenticated': check_authentication()})
+    # Send current session
+    emit('current_session', {'session': current_session})
+    # Send current client counts
+    emit('client_counts', {
+        'table_displays': len(connected_clients['table_displays']),
+        'audience_displays': len(connected_clients['audience_displays'])
+    })
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handle client disconnection"""
     print(f'Client disconnected: {request.sid}')
+    # Remove from tracking sets
+    connected_clients['table_displays'].discard(request.sid)
+    connected_clients['audience_displays'].discard(request.sid)
+    # Broadcast updated counts
+    broadcast_client_counts()
+
+@socketio.on('register_client')
+def handle_register_client(data):
+    """Register a client as a specific type (table_display or audience_display)"""
+    client_type = data.get('type')
+    if client_type == 'table_display':
+        connected_clients['table_displays'].add(request.sid)
+        print(f'Registered table display: {request.sid} (Total: {len(connected_clients["table_displays"])})')
+    elif client_type == 'audience_display':
+        connected_clients['audience_displays'].add(request.sid)
+        print(f'Registered audience display: {request.sid} (Total: {len(connected_clients["audience_displays"])})')
+
+    # Broadcast updated counts to all clients
+    broadcast_client_counts()
 
 @socketio.on('set_overlay')
 def handle_set_overlay(data):
@@ -144,7 +190,8 @@ def handle_request_rankings():
         rankings_sorted = sorted(rankings, key=lambda x: x['high_score'], reverse=True)
 
         print(f"Successfully fetched {len(rankings_sorted)} teams")
-        emit('rankings_data', {'rankings': rankings_sorted})
+        # Broadcast to all clients so they can update their last refresh time
+        emit('rankings_data', {'rankings': rankings_sorted}, broadcast=True)
     except Exception as e:
         print(f"Error fetching rankings: {e}")
         emit('error', {'message': str(e)})
@@ -312,6 +359,96 @@ def handle_complete_auth(data):
         print(f"Error completing authentication: {e}")
         emit('auth_error', {'message': str(e)})
 
+@socketio.on('request_user_info')
+def handle_request_user_info():
+    """Get currently authenticated user info"""
+    try:
+        if not connector.id_token:
+            # Try loading refresh token
+            connector.load_refresh_token()
+
+        if connector.id_token:
+            user_info = connector.get_user_info()
+            email = user_info['users'][0]['email']
+            # Include token expiry timestamp
+            emit('user_info', {
+                'email': email,
+                'authenticated': True,
+                'token_expiry': connector.token_expiry
+            })
+        else:
+            emit('user_info', {'authenticated': False})
+    except Exception as e:
+        print(f"Error getting user info: {e}")
+        emit('user_info', {'authenticated': False})
+
+@socketio.on('logout')
+def handle_logout():
+    """Logout and delete authentication token"""
+    try:
+        global is_authenticated
+        is_authenticated = False
+        connector.id_token = None
+        connector.refresh_token = None
+
+        # Delete the refresh token file
+        import os
+        if os.path.exists('firebase_refresh_token.txt'):
+            os.remove('firebase_refresh_token.txt')
+            print("Refresh token deleted")
+
+        emit('logout_success', {'message': 'Successfully logged out'})
+        # Broadcast auth status to all clients
+        emit('auth_status', {'authenticated': False}, broadcast=True)
+    except Exception as e:
+        print(f"Error logging out: {e}")
+        emit('error', {'message': str(e)})
+
+@socketio.on('set_session')
+def handle_set_session(data):
+    """Set the current session for table displays"""
+    global current_session
+    current_session = data.get('session')
+    print(f'Setting session to: {current_session}')
+    # Broadcast to all connected table displays
+    emit('session_update', {'session': current_session}, broadcast=True)
+
+@socketio.on('request_current_session')
+def handle_request_current_session():
+    """Send the current session to requesting client"""
+    emit('current_session', {'session': current_session})
+
+@socketio.on('request_team_name')
+def handle_request_team_name(data):
+    """Fetch team name from scores data"""
+    try:
+        team_number = data.get('team_number')
+
+        if not team_number:
+            emit('team_name', {'team_number': None, 'name': 'Unknown Team'})
+            return
+
+        # Fetch scores to get team names
+        region = event_data['region']
+        event_id = event_data['event_id']
+
+        scores = connector.get_team_scores_summary(region, event_id)
+
+        # Find the team in scores
+        team_name = None
+        for team in scores:
+            if str(team.get('team_number')) == str(team_number):
+                team_name = team.get('name', f'Team {team_number}')
+                break
+
+        if not team_name:
+            team_name = f'Team {team_number}'
+
+        emit('team_name', {'team_number': team_number, 'name': team_name})
+    except Exception as e:
+        print(f"Error fetching team name: {e}")
+        emit('team_name', {'team_number': team_number, 'name': f'Team {team_number}'})
+
 if __name__ == '__main__':
     # Load saved configuration
     load_config()
@@ -329,9 +466,10 @@ if __name__ == '__main__':
     print("\n" + "="*60)
     print("FLL Nexus Display Server")
     print("="*60)
-    print("Controller: http://localhost:5001/controller")
-    print("Display:    http://localhost:5001/display")
-    print("Auth:       http://localhost:5001/auth")
+    print("Controller:     http://localhost:5001/controller")
+    print("Display:        http://localhost:5001/display")
+    print("Table Display:  http://localhost:5001/table_display")
+    print("Auth:           http://localhost:5001/auth")
     print("="*60 + "\n")
 
     socketio.run(app, debug=True, host='0.0.0.0', port=5001)
