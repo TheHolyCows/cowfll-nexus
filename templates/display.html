@@ -132,40 +132,16 @@
         // Enable audio on page load (user interaction)
         document.addEventListener('click', initAudioContext, { once: true });
 
-        // Auto-refresh rankings every 15 seconds
-        let rankingsRefreshInterval = null;
+        // Auto-refresh rankings at bottom of scroll (not on timer)
         let isMatchActive = false;
 
-        function startRankingsAutoRefresh() {
-            // Clear any existing interval
-            if (rankingsRefreshInterval) {
-                clearInterval(rankingsRefreshInterval);
-            }
-
-            // Request rankings immediately (if not during match)
-            if (!isMatchActive) {
+        function requestRankingsIfActive() {
+            // Only refresh if not during a match and currently in rankings mode
+            if (!isMatchActive && currentMode === 'rankingsOverlay') {
+                console.log('Requesting updated rankings data...');
                 socket.emit('request_rankings');
-            }
-
-            // Set up interval to refresh every 15 seconds
-            rankingsRefreshInterval = setInterval(() => {
-                // Only refresh if match is not active
-                if (!isMatchActive) {
-                    console.log('Auto-refreshing rankings data...');
-                    socket.emit('request_rankings');
-                } else {
-                    console.log('Skipping rankings refresh - match in progress');
-                }
-            }, 15000); // 15 seconds
-
-            console.log('Rankings auto-refresh started (every 15 seconds)');
-        }
-
-        function stopRankingsAutoRefresh() {
-            if (rankingsRefreshInterval) {
-                clearInterval(rankingsRefreshInterval);
-                rankingsRefreshInterval = null;
-                console.log('Rankings auto-refresh stopped');
+            } else if (isMatchActive) {
+                console.log('Skipping rankings refresh - match in progress');
             }
         }
 
@@ -177,8 +153,8 @@
         function resumeRankingsRefresh() {
             isMatchActive = false;
             console.log('Rankings refresh resumed - match ended');
-            // Immediately refresh rankings after match ends
-            socket.emit('request_rankings');
+            // Immediately refresh rankings after match ends if in rankings mode
+            requestRankingsIfActive();
         }
 
         // Connection
@@ -187,15 +163,10 @@
             // Register as an audience display client
             socket.emit('register_client', { type: 'audience_display' });
             socket.emit('request_event_info');
-
-            // Start auto-refresh for rankings
-            startRankingsAutoRefresh();
         });
 
         socket.on('disconnect', () => {
             console.log('Display disconnected from server');
-            // Stop auto-refresh when disconnected
-            stopRankingsAutoRefresh();
         });
 
         // Handle overlay selection
@@ -295,8 +266,9 @@
 
             currentMode = mode;
 
-            // Start auto-scroll for rankings
+            // Request fresh rankings and start auto-scroll for rankings
             if (mode === 'rankingsOverlay') {
+                requestRankingsIfActive(); // Fetch latest rankings when entering rankings mode
                 setTimeout(() => {
                     startRankingsScroll();
                 }, 1000); // Wait for fade in
@@ -371,7 +343,7 @@
 
             let lastTime = performance.now();
             let pauseTimer = 0;
-            const pauseDuration = 3000; // Pause at top and bottom
+            const pauseDuration = 10000; // Pause at top and bottom (10 seconds)
             let isPaused = true; // Start paused at top
             let hasReachedBottom = false;
 
@@ -392,8 +364,10 @@
                         isPaused = false;
                         pauseTimer = 0;
 
-                        // If we just finished pausing at bottom, reset to top
+                        // If we just finished pausing at bottom, fetch new rankings and reset to top
                         if (hasReachedBottom) {
+                            console.log('Finished pausing at bottom, requesting updated rankings');
+                            requestRankingsIfActive(); // Refresh rankings before resetting to top
                             console.log('Resetting scroll to top');
                             container.scrollTop = 0;
                             hasReachedBottom = false;
