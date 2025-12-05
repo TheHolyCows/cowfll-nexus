@@ -38,7 +38,6 @@
                             <th>Team #</th>
                             <th>Team Name</th>
                             <th>High Score</th>
-                            <th>Avg Score</th>
                             <th>Rounds</th>
                         </tr>
                     </thead>
@@ -380,7 +379,6 @@
                     <td>${team.team_number}</td>
                     <td class="team-name">${team.name}</td>
                     <td>${team.high_score}</td>
-                    <td>${team.average_score.toFixed(1)}</td>
                     <td>${team.total_rounds}</td>
                 `;
                 tbody.appendChild(row);
@@ -541,23 +539,37 @@
         let currentSponsorIndex = 0;
         let sponsorInterval = null;
 
-        function loadSponsorLogos() {
-            // List of sponsor logo files
-            sponsorLogos = ['flllogo.svg', 'viasat.svg'];
+        async function loadSponsorLogos() {
+            try {
+                // Fetch list of sponsor logos from server
+                const response = await fetch('/api/sponsor_logos');
+                const data = await response.json();
+                sponsorLogos = data.logos || [];
 
-            // Create sponsor logo elements
-            const container = document.getElementById('spLowerThird');
-            container.innerHTML = '';
+                console.log(`Loaded ${sponsorLogos.length} sponsor logos:`, sponsorLogos);
 
-            sponsorLogos.forEach((logo, index) => {
-                const logoElement = document.createElement('object');
-                logoElement.type = 'image/svg+xml';
-                logoElement.data = `/static/images/sponsors/${logo}`;
-                logoElement.className = 'spLogo';
-                logoElement.id = `sponsor-${index}`;
-                logoElement.style.display = index === 0 ? 'block' : 'none';
-                container.appendChild(logoElement);
-            });
+                // Create sponsor logo elements
+                const container = document.getElementById('spLowerThird');
+                container.innerHTML = '';
+
+                if (sponsorLogos.length === 0) {
+                    console.log('No sponsor logos found');
+                    return;
+                }
+
+                sponsorLogos.forEach((logo, index) => {
+                    const logoElement = document.createElement('object');
+                    logoElement.type = 'image/svg+xml';
+                    logoElement.data = `/static/images/sponsors/${logo}`;
+                    logoElement.className = 'spLogo';
+                    logoElement.id = `sponsor-${index}`;
+                    logoElement.style.display = index === 0 ? 'block' : 'none';
+                    container.appendChild(logoElement);
+                });
+            } catch (error) {
+                console.error('Error loading sponsor logos:', error);
+                sponsorLogos = [];
+            }
         }
 
         function startSponsorSlideshow() {

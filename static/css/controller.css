@@ -113,6 +113,13 @@ h1 {
     gap: 20px;
 }
 
+/* Smaller buttons for display mode and quick nav sections */
+.button-grid.display-mode-grid,
+.button-grid.quick-nav-grid {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+}
+
 .control-btn {
     background: white;
     border: 2px solid #e0e0e0;
@@ -121,6 +128,11 @@ h1 {
     cursor: pointer;
     transition: all 0.3s;
     text-align: center;
+}
+
+/* Smaller display mode and nav buttons */
+.match-btn, .rankings-btn, .event-info-btn, .sponsors-btn, .blank-btn, .nav-btn {
+    padding: 8px 6px;
 }
 
 .control-btn:hover {
@@ -140,15 +152,47 @@ h1 {
     margin-bottom: 15px;
 }
 
+/* Smaller icons for display mode and nav buttons */
+.match-btn .btn-icon,
+.rankings-btn .btn-icon,
+.event-info-btn .btn-icon,
+.sponsors-btn .btn-icon,
+.blank-btn .btn-icon,
+.nav-btn .btn-icon {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
 .btn-title {
     font-size: 20px;
     font-weight: bold;
     margin-bottom: 10px;
 }
 
+/* Smaller titles for display mode and nav buttons */
+.match-btn .btn-title,
+.rankings-btn .btn-title,
+.event-info-btn .btn-title,
+.sponsors-btn .btn-title,
+.blank-btn .btn-title,
+.nav-btn .btn-title {
+    font-size: 12px;
+    margin-bottom: 2px;
+}
+
 .btn-desc {
     font-size: 14px;
     opacity: 0.8;
+}
+
+/* Smaller descriptions for display mode and nav buttons */
+.match-btn .btn-desc,
+.rankings-btn .btn-desc,
+.event-info-btn .btn-desc,
+.sponsors-btn .btn-desc,
+.blank-btn .btn-desc,
+.nav-btn .btn-desc {
+    font-size: 9px;
 }
 
 .control-btn.active .btn-desc {

@@ -113,6 +113,21 @@ def table_display():
     """Table display page for showing team info at specific tables"""
     return render_template('table_display.html')
 
+@app.route('/api/sponsor_logos')
+def get_sponsor_logos():
+    """Get list of sponsor logo files"""
+    try:
+        sponsor_dir = os.path.join(app.static_folder, 'images', 'sponsors')
+        if os.path.exists(sponsor_dir):
+            # Get all SVG files in the sponsors directory
+            files = [f for f in os.listdir(sponsor_dir) if f.endswith('.svg')]
+            return {'logos': files}
+        else:
+            return {'logos': []}
+    except Exception as e:
+        print(f"Error listing sponsor logos: {e}")
+        return {'logos': []}
+
 def broadcast_client_counts():
     """Broadcast current client counts to all controllers"""
     counts = {
