@@ -168,6 +168,7 @@ nexus-fll/
 Select the display mode:
 - **Match Overlay** - Show timer and team info during matches
 - **Rankings** - Display current team standings
+- **Event Info** - Show event information with QR code to event page
 - **Sponsors** - Show sponsor slideshow
 - **Blank Screen** - Hide all overlays (chroma key only)
 
@@ -207,6 +208,13 @@ Select the display mode:
 - Sticky header while scrolling
 - Auto-scroll through all teams
 - Pauses during active matches
+- QR code in bottom-right corner linking to live leaderboard
+
+#### Event Info
+- Event name with FLL Nexus logo
+- Large QR code linking to event page
+- Clean, centered design
+- Perfect for pre-event display or breaks
 
 #### Sponsors
 - Rotating sponsor logos

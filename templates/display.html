@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/display.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <!-- Match Overlay Mode -->
@@ -47,6 +48,13 @@
                 </table>
             </div>
         </div>
+        <div id="qrCodeContainer" class="qr-code-container">
+            <div id="qrcode"></div>
+            <div class="qr-label">
+                <img src="https://fll.nexus/assets/images/icon.svg" alt="FLL Nexus" class="qr-logo">
+                Leaderboard
+            </div>
+        </div>
     </div>
 
     <!-- Sponsors Mode -->
@@ -61,12 +69,29 @@
         <!-- Intentionally blank for chroma key -->
     </div>
 
+    <!-- Event Info Mode -->
+    <div id="eventInfo" class="overlay-mode" style="display: none;">
+        <div class="event-info-container">
+            <div class="event-info-header">
+                <img src="https://fll.nexus/assets/images/icon.svg" alt="FLL Nexus" class="event-info-logo">
+                <div class="event-info-title" id="eventInfoTitle">Event Information</div>
+            </div>
+            <div class="event-qr-container">
+                <div id="eventQrCode"></div>
+                <div class="event-qr-label">Scan for Event Info</div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const socket = io();
         let currentMode = 'matchOverlay';
         let rankingsData = [];
         let lastSeconds = 150;
         let playbuzzer = false;
+        let currentRegion = '';
+        let currentEventId = '';
+        let qrCodeInstance = null;
 
         // Audio elements
         const startbell = new Audio('/static/sounds/start.mp3');
@@ -238,8 +263,71 @@
         socket.on('event_info', (data) => {
             if (data.event_name) {
                 document.querySelector('.eventTitle').textContent = data.event_name;
+                document.getElementById('eventInfoTitle').textContent = data.event_name;
+            }
+
+            // Update QR code if region or event_id changed
+            if (data.region && data.event_id) {
+                if (data.region !== currentRegion || data.event_id !== currentEventId) {
+                    currentRegion = data.region;
+                    currentEventId = data.event_id;
+                    updateQRCode();
+                    updateEventQRCode();
+                }
             }
         });
+
+        // Generate or update QR code for FLL Nexus leaderboard
+        function updateQRCode() {
+            if (!currentRegion || !currentEventId) {
+                console.log('Cannot generate QR code - missing region or event_id');
+                return;
+            }
+
+            const leaderboardUrl = `https://fll.nexus/region/${currentRegion}/event/${currentEventId}/leaderboard`;
+            console.log('Generating QR code for:', leaderboardUrl);
+
+            const qrContainer = document.getElementById('qrcode');
+
+            // Clear existing QR code
+            qrContainer.innerHTML = '';
+
+            // Generate new QR code
+            qrCodeInstance = new QRCode(qrContainer, {
+                text: leaderboardUrl,
+                width: 150,
+                height: 150,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        }
+
+        // Generate or update QR code for event info page
+        function updateEventQRCode() {
+            if (!currentRegion || !currentEventId) {
+                console.log('Cannot generate event QR code - missing region or event_id');
+                return;
+            }
+
+            const eventUrl = `https://fll.nexus/region/${currentRegion}/event/${currentEventId}`;
+            console.log('Generating event QR code for:', eventUrl);
+
+            const qrContainer = document.getElementById('eventQrCode');
+
+            // Clear existing QR code
+            qrContainer.innerHTML = '';
+
+            // Generate new QR code
+            new QRCode(qrContainer, {
+                text: eventUrl,
+                width: 300,
+                height: 300,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        }
 
         // Switch between overlay modes
         function switchOverlay(mode) {
