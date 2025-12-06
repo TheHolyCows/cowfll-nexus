@@ -131,7 +131,7 @@ h1 {
 }
 
 /* Smaller display mode and nav buttons */
-.match-btn, .rankings-btn, .event-info-btn, .sponsors-btn, .blank-btn, .nav-btn {
+.match-btn, .match-intro-btn, .rankings-btn, .event-info-btn, .sponsors-btn, .blank-btn, .nav-btn {
     padding: 8px 6px;
 }
 
@@ -154,6 +154,7 @@ h1 {
 
 /* Smaller icons for display mode and nav buttons */
 .match-btn .btn-icon,
+.match-intro-btn .btn-icon,
 .rankings-btn .btn-icon,
 .event-info-btn .btn-icon,
 .sponsors-btn .btn-icon,
@@ -171,6 +172,7 @@ h1 {
 
 /* Smaller titles for display mode and nav buttons */
 .match-btn .btn-title,
+.match-intro-btn .btn-title,
 .rankings-btn .btn-title,
 .event-info-btn .btn-title,
 .sponsors-btn .btn-title,
@@ -187,6 +189,7 @@ h1 {
 
 /* Smaller descriptions for display mode and nav buttons */
 .match-btn .btn-desc,
+.match-intro-btn .btn-desc,
 .rankings-btn .btn-desc,
 .event-info-btn .btn-desc,
 .sponsors-btn .btn-desc,

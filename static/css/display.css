@@ -339,6 +339,134 @@ body {
     transform: scale(0.85);
 }
 
+/* Match Intro Mode */
+#matchIntro {
+    width: 100vw;
+    height: 100vh;
+    text-align: center;
+}
+
+#matchIntro .rkContainer {
+    position: absolute;
+    width: 60vw;
+    height: 90vh;
+    top: 5vh;
+    left: 20vw;
+    background: rgba(56, 56, 56, 1);
+    background: linear-gradient(to bottom, rgba(56, 56, 56, 1) 0%, rgba(0, 0, 0, 1) 100%);
+    overflow: hidden;
+    border-radius: 1vh;
+}
+
+#matchIntro .rkContainer .title {
+    width: 60vw;
+    text-align: center;
+    height: 10vh;
+    top: 0;
+    position: absolute;
+    font-weight: 900;
+    line-height: 10vh;
+    font-size: 5vh;
+    color: white;
+    font-family: "Lato";
+}
+
+#matchIntro .rkContainer .lower {
+    width: 58vw;
+    background-color: white;
+    top: 10vh;
+    left: 1vw;
+    max-height: 68vh;
+    position: absolute;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+}
+
+#matchIntro .rkContainer .lower::-webkit-scrollbar {
+    display: none;
+}
+
+#matchIntro .rkContainer .lower {
+    scrollbar-width: none;
+}
+
+#matchIntro .rkContainer .lower table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#matchIntro .rkContainer .lower table thead {
+    background: #333;
+    color: white;
+}
+
+#matchIntro .rkContainer .lower table th {
+    padding: 2.5vh;
+    font-size: 3vh;
+    font-weight: 900;
+    text-align: center;
+}
+
+#matchIntro .rkContainer .lower table td {
+    padding: 2vh;
+    font-size: 2.8vh;
+    text-align: center;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+#matchIntro .rkContainer .lower table tr:nth-child(even) {
+    background-color: #f5f5f5;
+}
+
+#matchIntro .rkContainer .lower table tr:hover {
+    background-color: #e3f2fd;
+}
+
+#matchIntro .rkContainer .lower table .team-name {
+    font-weight: 700;
+    text-align: left;
+}
+
+/* QR Code in Match Intro */
+#matchIntro .match-intro-qr-container {
+    position: absolute;
+    bottom: 2vh;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    padding: 2.2vh;
+    border-radius: 1.4vh;
+    text-align: center;
+}
+
+#matchIntro .match-intro-qr-container #matchIntroQrCode {
+    width: 21.6vh;
+    height: 21.6vh;
+}
+
+#matchIntro .match-intro-qr-container #matchIntroQrCode img {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+#matchIntro .match-intro-qr-container .match-intro-qr-label {
+    font-family: 'Lato', sans-serif;
+    font-size: 2.6vh;
+    font-weight: 700;
+    color: #00AEEF;
+    margin-top: 0.7vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5vh;
+}
+
+#matchIntro .match-intro-qr-container .match-intro-qr-label .qr-logo {
+    height: 3vh;
+    width: auto;
+    vertical-align: middle;
+}
+
 /* Event Info Mode */
 #eventInfo {
     width: 100vw;

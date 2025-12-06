@@ -82,6 +82,36 @@
         </div>
     </div>
 
+    <!-- Match Intro Mode -->
+    <div id="matchIntro" class="overlay-mode" style="display: none;">
+        <div class="rkContainer">
+            <div class="title" id="matchIntroTitle">Team Introductions</div>
+            <div id="matchIntroContainer" class="lower">
+                <table class="matchIntroTable">
+                    <thead>
+                        <tr>
+                            <th style="display: none;">Table</th>
+                            <th>Team #</th>
+                            <th>Team Name</th>
+                            <th>Rank</th>
+                            <th>High Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="matchIntroBody">
+                        <!-- Match intro data will be dynamically inserted here -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="matchIntroQrContainer" class="match-intro-qr-container">
+                <div id="matchIntroQrCode"></div>
+                <div class="match-intro-qr-label">
+                    <img src="https://fll.nexus/assets/images/icon.svg" alt="FLL Nexus" class="qr-logo">
+                    Event Info
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const socket = io();
         let currentMode = 'matchOverlay';
@@ -91,6 +121,8 @@
         let currentRegion = '';
         let currentEventId = '';
         let qrCodeInstance = null;
+        let currentSession = null;
+        let sessionData = null;
 
         // Audio elements
         const startbell = new Audio('/static/sounds/start.mp3');
@@ -187,6 +219,7 @@
             // Register as an audience display client
             socket.emit('register_client', { type: 'audience_display' });
             socket.emit('request_event_info');
+            socket.emit('request_current_session');
         });
 
         socket.on('disconnect', () => {
@@ -204,6 +237,11 @@
             console.log('Received rankings:', data.rankings);
             rankingsData = data.rankings;
             updateRankingsTable();
+
+            // Update match intro if it's showing
+            if (currentMode === 'matchIntro') {
+                updateMatchIntroTable();
+            }
 
             // Restart scroll if we're currently showing rankings
             if (currentMode === 'rankingsOverlay') {
@@ -272,6 +310,26 @@
                     currentEventId = data.event_id;
                     updateQRCode();
                     updateEventQRCode();
+                    updateMatchIntroQRCode();
+                }
+            }
+        });
+
+        // Handle session updates
+        socket.on('session_update', (data) => {
+            console.log('Session updated:', data);
+            currentSession = data.session;
+            // Request schedule data to get session details
+            socket.emit('request_schedule');
+        });
+
+        // Handle schedule data
+        socket.on('schedule_data', (data) => {
+            console.log('Received schedule data:', data);
+            if (data.schedule && currentSession !== null) {
+                sessionData = data.schedule[currentSession];
+                if (currentMode === 'matchIntro') {
+                    updateMatchIntroTable();
                 }
             }
         });
@@ -328,6 +386,32 @@
             });
         }
 
+        // Generate or update QR code for match intro
+        function updateMatchIntroQRCode() {
+            if (!currentRegion || !currentEventId) {
+                console.log('Cannot generate match intro QR code - missing region or event_id');
+                return;
+            }
+
+            const eventUrl = `https://fll.nexus/region/${currentRegion}/event/${currentEventId}`;
+            console.log('Generating match intro QR code for:', eventUrl);
+
+            const qrContainer = document.getElementById('matchIntroQrCode');
+
+            // Clear existing QR code
+            qrContainer.innerHTML = '';
+
+            // Generate new QR code
+            new QRCode(qrContainer, {
+                text: eventUrl,
+                width: 150,
+                height: 150,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        }
+
         // Switch between overlay modes
         function switchOverlay(mode) {
             // Stop rankings scroll if switching away
@@ -360,6 +444,13 @@
                     startRankingsScroll();
                 }, 1000); // Wait for fade in
             }
+
+            // Request data for match intro mode
+            if (mode === 'matchIntro') {
+                socket.emit('request_rankings'); // Get latest rankings
+                socket.emit('request_current_session'); // Get current session
+                socket.emit('request_schedule'); // Get schedule data
+            }
         }
 
         // Update rankings table - show ALL teams
@@ -383,6 +474,110 @@
                 `;
                 tbody.appendChild(row);
             }
+        }
+
+        // Update Match Intro table - show teams at tables for current session
+        function updateMatchIntroTable() {
+            const tbody = document.getElementById('matchIntroBody');
+            const titleElement = document.getElementById('matchIntroTitle');
+            tbody.innerHTML = '';
+
+            if (!sessionData || !sessionData.teams) {
+                console.log('No session data available');
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No session selected</td></tr>';
+                titleElement.textContent = 'Team Introductions';
+                return;
+            }
+
+            console.log('Updating match intro table with session data:', sessionData);
+
+            // Update title with session type and number
+            const sessionType = sessionData.practice ? 'Practice' : 'Official';
+            const sessionNumber = currentSession !== null ? currentSession + 1 : '?';
+            titleElement.textContent = `${sessionType} - Session ${sessionNumber}`;
+
+            // Get teams from session - preserve original structure to maintain table indices
+            const teams = sessionData.teams;
+
+            // Handle teams as either array or object
+            if (Array.isArray(teams)) {
+                // Array format: iterate through each position, index represents table position
+                teams.forEach((teamNumber, index) => {
+                    if (teamNumber === null || teamNumber === undefined) {
+                        return; // Skip empty tables
+                    }
+
+                    // Table numbers start at 1, array index starts at 0
+                    const tableNumber = index + 1;
+                    const tableName = `Table ${tableNumber}`;
+
+                    // Find team in rankings to get rank and high score
+                    let rank = '-';
+                    let highScore = '-';
+                    let teamName = `Team ${teamNumber}`;
+
+                    if (rankingsData.length > 0) {
+                        const teamIndex = rankingsData.findIndex(t => String(t.team_number) === String(teamNumber));
+                        if (teamIndex !== -1) {
+                            rank = teamIndex + 1;
+                            highScore = rankingsData[teamIndex].high_score;
+                            teamName = rankingsData[teamIndex].name;
+                        }
+                    }
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td style="display: none;">${tableName}</td>
+                        <td>${teamNumber}</td>
+                        <td class="team-name">${teamName}</td>
+                        <td>${rank}</td>
+                        <td>${highScore}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } else if (typeof teams === 'object') {
+                // Object format: use keys as table indices
+                Object.entries(teams).forEach(([tableIndex, teamNumber]) => {
+                    if (teamNumber === null || teamNumber === undefined) {
+                        return; // Skip empty tables
+                    }
+
+                    // Convert string key to number and add 1 for display
+                    const tableNumber = parseInt(tableIndex) + 1;
+                    const tableName = `Table ${tableNumber}`;
+
+                    // Find team in rankings to get rank and high score
+                    let rank = '-';
+                    let highScore = '-';
+                    let teamName = `Team ${teamNumber}`;
+
+                    if (rankingsData.length > 0) {
+                        const teamIndex = rankingsData.findIndex(t => String(t.team_number) === String(teamNumber));
+                        if (teamIndex !== -1) {
+                            rank = teamIndex + 1;
+                            highScore = rankingsData[teamIndex].high_score;
+                            teamName = rankingsData[teamIndex].name;
+                        }
+                    }
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td style="display: none;">${tableName}</td>
+                        <td>${teamNumber}</td>
+                        <td class="team-name">${teamName}</td>
+                        <td>${rank}</td>
+                        <td>${highScore}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            // Count non-null teams for logging
+            const teamCount = Array.isArray(teams)
+                ? teams.filter(t => t !== null && t !== undefined).length
+                : Object.values(teams).filter(t => t !== null && t !== undefined).length;
+
+            console.log(`Rendered ${teamCount} teams in match intro table`);
         }
 
         // Auto-scroll rankings with smooth continuous animation
