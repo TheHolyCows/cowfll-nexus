@@ -616,7 +616,7 @@
             }
 
             // Adjust speed so it takes at least 10 seconds to scroll through
-            const minScrollDuration = 10000; // milliseconds
+            const minScrollDuration = 12500; // milliseconds
             const calculatedSpeed = (scrollDistance / minScrollDuration) * 1000;
             const scrollSpeed = Math.max(baseScrollSpeed, calculatedSpeed);
             console.log(`Using scroll speed: ${scrollSpeed} px/s (calculated: ${calculatedSpeed}, base: ${baseScrollSpeed})`);
@@ -624,7 +624,7 @@
 
             let lastTime = performance.now();
             let pauseTimer = 0;
-            const pauseDuration = 10000; // Pause at top and bottom (10 seconds)
+            const pauseDuration = 5000; // Pause at top and bottom (10 seconds)
             let isPaused = true; // Start paused at top
             let hasReachedBottom = false;
 
