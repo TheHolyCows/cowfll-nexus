@@ -236,6 +236,13 @@
         socket.on('rankings_data', (data) => {
             console.log('Received rankings:', data.rankings);
             rankingsData = data.rankings;
+
+            // Stop current scroll animation before updating table
+            const wasScrolling = currentMode === 'rankingsOverlay' && scrollAnimationId !== null;
+            if (wasScrolling) {
+                stopRankingsScroll();
+            }
+
             updateRankingsTable();
 
             // Update match intro if it's showing
@@ -243,8 +250,8 @@
                 updateMatchIntroTable();
             }
 
-            // Restart scroll if we're currently showing rankings
-            if (currentMode === 'rankingsOverlay') {
+            // Restart scroll if we were scrolling
+            if (wasScrolling) {
                 setTimeout(() => {
                     startRankingsScroll();
                 }, 500);
@@ -591,11 +598,8 @@
                 return;
             }
 
-            // Stop any existing animation
-            if (scrollAnimationId) {
-                cancelAnimationFrame(scrollAnimationId);
-                scrollAnimationId = null;
-            }
+            // Stop any existing animation - CRITICAL to prevent multiple loops
+            stopRankingsScroll();
 
             container.scrollTop = 0;
             const table = container.querySelector('table');
@@ -604,9 +608,15 @@
                 return;
             }
 
-            const tableHeight = table.scrollHeight;
-            const containerHeight = container.clientHeight;
-            const scrollDistance = tableHeight - containerHeight;
+            // Use a function to get fresh measurements (in case table changes)
+            function getMeasurements() {
+                const tableHeight = table.scrollHeight;
+                const containerHeight = container.clientHeight;
+                const scrollDistance = tableHeight - containerHeight;
+                return { tableHeight, containerHeight, scrollDistance };
+            }
+
+            let { tableHeight, containerHeight, scrollDistance } = getMeasurements();
 
             console.log(`Rankings scroll info: table=${tableHeight}px, container=${containerHeight}px, distance=${scrollDistance}px`);
 
@@ -624,20 +634,24 @@
 
             let lastTime = performance.now();
             let pauseTimer = 0;
-            const pauseDuration = 5000; // Pause at top and bottom (10 seconds)
+            const pauseDuration = 5000; // Pause at top and bottom (5 seconds)
             let isPaused = true; // Start paused at top
             let hasReachedBottom = false;
+            let frameCount = 0;
 
             console.log('Starting rankings scroll animation');
 
             function animate(currentTime) {
+                // Safety check - ensure we're the only animation running
                 if (!container || currentMode !== 'rankingsOverlay') {
                     console.log('Stopping scroll - mode changed or container gone');
+                    scrollAnimationId = null;
                     return; // Stop if container is gone or mode changed
                 }
 
                 const deltaTime = currentTime - lastTime;
                 lastTime = currentTime;
+                frameCount++;
 
                 if (isPaused) {
                     pauseTimer += deltaTime;
@@ -659,6 +673,12 @@
                     // Smooth scroll
                     const scrollAmount = (scrollSpeed * deltaTime) / 1000;
                     container.scrollTop += scrollAmount;
+
+                    // Only refresh measurements every 60 frames (~1 second at 60fps) to avoid layout thrashing
+                    if (frameCount % 60 === 0) {
+                        const currentMeasurements = getMeasurements();
+                        scrollDistance = currentMeasurements.scrollDistance;
+                    }
 
                     // Check if reached bottom
                     if (container.scrollTop >= scrollDistance - 1) {
@@ -759,6 +779,8 @@
                     logoElement.className = 'spLogo';
                     logoElement.id = `sponsor-${index}`;
                     logoElement.style.display = index === 0 ? 'block' : 'none';
+                    logoElement.style.opacity = index === 0 ? '1' : '0';
+                    logoElement.style.transition = 'opacity 0.5s';
                     container.appendChild(logoElement);
                 });
             } catch (error) {
@@ -789,8 +811,9 @@
 
             // Rotate sponsors every 5 seconds
             sponsorInterval = setInterval(() => {
-                currentSponsorIndex = (currentSponsorIndex + 1) % sponsorLogos.length;
-                showSponsor(currentSponsorIndex);
+                const nextIndex = (currentSponsorIndex + 1) % sponsorLogos.length;
+                showSponsor(nextIndex);
+                currentSponsorIndex = nextIndex;
             }, 5000);
         }
 
@@ -802,28 +825,27 @@
         }
 
         function showSponsor(index) {
-            // Hide all sponsors
-            sponsorLogos.forEach((logo, i) => {
-                const element = document.getElementById(`sponsor-${i}`);
-                if (element) {
-                    element.style.opacity = '0';
-                    setTimeout(() => {
-                        element.style.display = 'none';
-                    }, 500);
-                }
-            });
+            const currentElement = document.getElementById(`sponsor-${currentSponsorIndex}`);
+            const nextElement = document.getElementById(`sponsor-${index}`);
 
-            // Show current sponsor with fade
+            if (!currentElement || !nextElement) return;
+
+            // Fade out current sponsor
+            currentElement.style.transition = 'opacity 0.5s';
+            currentElement.style.opacity = '0';
+
+            // After fade out completes, swap sponsors
             setTimeout(() => {
-                const element = document.getElementById(`sponsor-${index}`);
-                if (element) {
-                    element.style.display = 'block';
-                    element.style.opacity = '0';
-                    setTimeout(() => {
-                        element.style.transition = 'opacity 0.5s';
-                        element.style.opacity = '1';
-                    }, 10);
-                }
+                currentElement.style.display = 'none';
+                nextElement.style.display = 'block';
+                nextElement.style.opacity = '0';
+
+                // Force reflow to ensure the display change takes effect
+                nextElement.offsetHeight;
+
+                // Fade in next sponsor
+                nextElement.style.transition = 'opacity 0.5s';
+                nextElement.style.opacity = '1';
             }, 500);
         }
 
